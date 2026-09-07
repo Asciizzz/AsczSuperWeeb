@@ -1,5 +1,3 @@
-// WeebRender Core Module Exports
-
 // 3D Transforms
 export {
     TransformCmp,
@@ -56,11 +54,15 @@ export {
     WgpuShader,
     type WgpuShaderPayload,
     WgpuRenderer,
-    WeebRenderer,
     SceneDrawStep,
+    BeginFrame,
+    EndFrame,
     FrameStart,
     FrameEnd,
-    type WeebRendererOptions,
+    RenderPass,
+    EndPass,
+    type AwgpuCtx,
+    type WgpuRendererOptions,
     // Ergonomic aliases for the active backend
     GTexture,
     type GTextureOptions,
@@ -118,11 +120,6 @@ export {
     ConstColorNode,
     ConstFloatNode,
     ShaderParamsCmp,
-    createColorShader,
-    createTextureShader,
-    createDefaultShader,
-    createShadedColorShader,
-    createShadedTextureShader,
     type SocketType,
     type InputSocket,
     type OutputSocket,

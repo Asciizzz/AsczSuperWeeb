@@ -5,7 +5,6 @@ import { Skeleton, type Joint, SkinCmp } from "../skeleton.js";
 import { TransformCmp } from "../transform.js";
 import { MaterialCmp } from "../material.js";
 import { GShader } from "../wgpu/wshader.js";
-import { createColorShader, createTextureShader } from "../shader/presets.js";
 import { Texture } from "../texture.js";
 import { STANDARD_ATTRIBUTES, SKINNED_ATTRIBUTES } from "../extensions/presets.js";
 import { Mat4, Vec3, Quat, type V3, type Q4, type M16 } from "../../Atoolkit/alm/index.js";
@@ -571,14 +570,14 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
                 const matIdx = submeshMatSlots[i];
                 const mat = materials[matIdx];
                 if (mat?.baseTexture) {
-                    submeshShaders.push(createTextureShader(null, mat.baseColorFactor, `${modelName}_TexShader`));
+                    submeshShaders.push(null);
                     submeshParams.push({
                         mainTexture: null,
                         tintColor: mat.baseColorFactor,
                     });
                 } else {
                     const color = mat?.baseColorFactor ?? [0.9, 0.9, 0.95, 1.0];
-                    submeshShaders.push(createColorShader(color, `${modelName}_Shader`));
+                    submeshShaders.push(null);
                     submeshParams.push({
                         baseColor: color,
                     });
@@ -693,14 +692,14 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
             const matIdx = submeshMatSlots[i];
             const mat = materials[matIdx];
             if (mat?.baseTexture) {
-                submeshShaders.push(createTextureShader(null, mat.baseColorFactor, `${modelName}_TexShader`));
+                submeshShaders.push(null);
                 submeshParams.push({
                     mainTexture: null,
                     tintColor: mat.baseColorFactor,
                 });
             } else {
                 const color = mat?.baseColorFactor ?? [0.9, 0.9, 0.95, 1.0];
-                submeshShaders.push(createColorShader(color, `${modelName}_Shader`));
+                submeshShaders.push(null);
                 submeshParams.push({
                     baseColor: color,
                 });

@@ -39,7 +39,7 @@ Active hardware backend:
 - `WgpuTexture`: Manages `GPUTexture`, `GPUTextureView`, and `GPUSampler` objects, supporting CPU texture uploads and offscreen Render-to-Texture (RTT) targets.
 - `WgpuShader`: Manages `GPURenderPipeline` caching for static (stride 32) and skinned (stride 64) vertex configurations, WGSL shader modules, and bind group layouts.
 - `compileWgsl`: Dedicated WebGPU shader compiler translating `ShaderGraph` AST topology into WGSL source code.
-- `WgpuRenderer`: Orchestrates render passes via `Aflow`, managing camera, object, material, and skinning bind groups. Aliased as `WeebRenderer`.
+- `WgpuRenderer`: Orchestrates render passes via `Aflow`, managing camera, object, material, and skinning bind groups.
 
 See [wgpu/ReadMe.md](./wgpu/ReadMe.md) for WebGPU backend details.
 
@@ -86,7 +86,7 @@ The renderer operates on GPU handles rather than auto-converting CPU buffers on 
 ```typescript
 import { Aecs } from "../Atoolkit/aecs/index.js";
 import {
-    WeebRenderer,
+    WgpuRenderer,
     CameraCmp,
     TransformCmp,
     MeshCmp,
@@ -124,7 +124,7 @@ const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const camera = new CameraCmp(60, canvas.width / canvas.height, 0.1, 1000);
 camera.lookAt([0, 2, 5], [0, 0, 0]);
 
-const renderer = new WeebRenderer(canvas);
+const renderer = new WgpuRenderer(canvas);
 await renderer.init();
 
 // 5. Upload CPU Mesh to GPU Handle

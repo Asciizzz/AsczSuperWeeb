@@ -15,6 +15,7 @@
     "WeebRender/**/*.ts",
     "prototypes/Akettle/**/*.ts",
     "prototypes/SuperSimple/**/*.ts",
+    "prototypes/RttCube/**/*.ts",
     "hub/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts"]

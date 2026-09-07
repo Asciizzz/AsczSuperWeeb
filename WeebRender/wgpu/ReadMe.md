@@ -39,7 +39,7 @@ Dedicated WebGPU shader code compiler:
 
 ### `renderer.ts`
 
-`WgpuRenderer` (aliased as `WeebRenderer`):
+`WgpuRenderer`:
 - Initializes `Awgpu` device context, swapchain format, depth-stencil buffer, and default 1x1 white fallback texture.
 - Assembles the `Aflow` render execution graph (`BeginFrame` -> `RenderPass` -> `EndFrame`).
 - Maintains object uniform buffer pools (Group 1, 64 bytes) and material uniform buffer pools (Group 2).

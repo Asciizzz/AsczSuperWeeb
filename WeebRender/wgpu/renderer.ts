@@ -1,6 +1,6 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import { type Adiag } from "../../Atoolkit/adiag/index.js";
-import { Aflow } from "../../Atoolkit/aflow/index.js";
+import { Aflow, type Anode } from "../../Atoolkit/aflow/index.js";
 import { type Aecs } from "../../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, type M16 } from "../../Atoolkit/alm/index.js";
 import {
@@ -19,14 +19,23 @@ import { CameraCmp } from "../camera.js";
 import { SkinCmp } from "../skeleton.js";
 import { MaterialCmp, type MaterialParamRecord } from "../material.js";
 import { ShaderParamsCmp } from "../shader/params.js";
-import { createDefaultShader } from "../shader/presets.js";
+import { ShaderGraph } from "../shader/graph.js";
+import { ColorNode } from "../shader/nodes/color.js";
 
 import { WgpuMesh, GMesh } from "./wmesh.js";
 import { WgpuTexture, GTexture } from "./wtexture.js";
 import { WgpuShader, GShader } from "./wshader.js";
 
-// Re-export frame boundary Acmp steps for explicit frame control
-export { BeginFrame as FrameStart, EndFrame as FrameEnd };
+// Re-export frame and pass steps for external flow composition
+export {
+    BeginFrame,
+    EndFrame,
+    BeginFrame as FrameStart,
+    EndFrame as FrameEnd,
+    RenderPass,
+    EndPass,
+    type AwgpuCtx,
+};
 
 // ==================== Scene Draw Acmp Step ====================
 
@@ -52,19 +61,31 @@ export class SceneDrawStep extends Acmp<AwgpuCtx> {
 
 const IDENTITY_MATRIX: M16 = Mat4.makeIdentity();
 
-export interface WeebRendererOptions {
+export interface WgpuRendererOptions {
     antialias?: boolean;
     clearColor?: { r: number; g: number; b: number; a: number };
+    parentNode?: Anode<Acmp<AwgpuCtx>[]>;
+    target?: WgpuTexture | null;
+    label?: string;
+    backend?: Backend;
 }
 
 /**
  * WebGPU rendering engine.
  * Operates strictly on GPU-resident data wrappers (GMesh, GTexture, GShader).
+ * Controls rendering up to the RenderPass level and mounts into an external Aflow node.
  */
 export class WgpuRenderer {
     readonly canvas: HTMLCanvasElement;
     backend: Backend | null = null;
-    flow: Aflow<AwgpuCtx> | null = null;
+    label: string;
+
+    parentNode: Anode<Acmp<AwgpuCtx>[]> | null = null;
+    target: WgpuTexture | null = null;
+
+    renderPassStep: RenderPass | null = null;
+    sceneDrawStep: SceneDrawStep | null = null;
+    endPassStep: EndPass | null = null;
 
     defaultShader: GShader | null = null;
     pipeline: GPURenderPipeline | null = null;
@@ -100,10 +121,23 @@ export class WgpuRenderer {
     clearColor = { r: 0.08, g: 0.09, b: 0.12, a: 1.0 };
     drawCallCount = 0;
 
-    constructor(canvas: HTMLCanvasElement, options: WeebRendererOptions = {}) {
+    private standaloneStartStep = new BeginFrame("StandaloneFrameStart");
+    private standaloneEndStep = new EndFrame();
+
+    constructor(canvas: HTMLCanvasElement, options: WgpuRendererOptions = {}) {
         this.canvas = canvas;
+        this.label = options.label ?? "WgpuRenderer";
         if (options.clearColor) {
             this.clearColor = { ...options.clearColor };
+        }
+        if (options.target) {
+            this.target = options.target;
+        }
+        if (options.backend) {
+            this.backend = options.backend;
+        }
+        if (options.parentNode) {
+            this.parentNode = options.parentNode;
         }
     }
 
@@ -163,16 +197,20 @@ export class WgpuRenderer {
 
     /**
      * Initializes Awgpu backend, configures layouts,
-     * creates depth stencil and default textures, and builds the Aflow graph.
+     * creates depth stencil and default textures, and builds the pass steps.
      */
-    async init(): Promise<void> {
-        this.backend = await Backend.create(this.canvas);
+    async init(backend?: Backend): Promise<void> {
+        if (backend) {
+            this.backend = backend;
+        } else if (!this.backend) {
+            this.backend = await Backend.create(this.canvas);
+        }
         const device = this.backend.device!;
         const format = this.backend.format!;
 
-        // 1. Create Bind Group Layouts (Camera: Group 0, Object: Group 1)
+        // 1. Create Bind Group Layouts (Camera: Group 0, Object: Group 1, Skin: Group 3)
         this.cameraBindGroupLayout = device.createBindGroupLayout({
-            label: "CameraBindGroupLayout",
+            label: `${this.label}_CameraBindGroupLayout`,
             entries: [
                 {
                     binding: 0,
@@ -183,7 +221,7 @@ export class WgpuRenderer {
         });
 
         this.objectBindGroupLayout = device.createBindGroupLayout({
-            label: "ObjectBindGroupLayout",
+            label: `${this.label}_ObjectBindGroupLayout`,
             entries: [
                 {
                     binding: 0,
@@ -194,7 +232,7 @@ export class WgpuRenderer {
         });
 
         this.skinBindGroupLayout = device.createBindGroupLayout({
-            label: "SkinBindGroupLayout",
+            label: `${this.label}_SkinBindGroupLayout`,
             entries: [
                 {
                     binding: 0,
@@ -206,20 +244,20 @@ export class WgpuRenderer {
 
         // 2. Allocate Camera Uniform Buffer (80 bytes)
         this.cameraUniformBuffer = device.createBuffer({
-            label: "CameraUniformBuffer",
+            label: `${this.label}_CameraUniformBuffer`,
             size: 80,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
 
         this.cameraBindGroup = device.createBindGroup({
-            label: "CameraBindGroup",
+            label: `${this.label}_CameraBindGroup`,
             layout: this.cameraBindGroupLayout,
             entries: [{ binding: 0, resource: { buffer: this.cameraUniformBuffer } }],
         });
 
         // 3. Create Default 1x1 White Fallback GTexture
         const defaultTex = device.createTexture({
-            label: "DefaultWhiteTexture",
+            label: `${this.label}_DefaultWhiteTexture`,
             size: [1, 1, 1],
             format: "rgba8unorm",
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
@@ -233,14 +271,14 @@ export class WgpuRenderer {
         );
         const defaultView = defaultTex.createView();
         const defaultSampler = device.createSampler({
-            label: "DefaultSampler",
+            label: `${this.label}_DefaultSampler`,
             magFilter: "linear",
             minFilter: "linear",
         });
         this.defaultGTexture = new GTexture("DefaultWhite", defaultTex, defaultView, defaultSampler, 1, 1, true);
 
         // 4. Initialize Default Fallback Shader
-        this.defaultShader = createDefaultShader();
+        this.defaultShader = this.createDefaultShader();
         this.defaultShader.initGpu(
             device,
             format,
@@ -253,23 +291,37 @@ export class WgpuRenderer {
         // 5. Setup Depth Texture
         this.resizeDepthTexture();
 
-        // 6. Assemble Aflow Execution Graph
-        this.buildRenderFlow();
+        // 6. Build RenderPass and SceneDrawStep components
+        this.buildPassSteps();
+
+        // 7. Mount to parentNode if provided
+        if (this.parentNode) {
+            this.mountPassSteps();
+        }
+    }
+
+    private createDefaultShader(): GShader {
+        const graph = new ShaderGraph("DefaultShader");
+        const colorNode = new ColorNode("colorNode", [1, 1, 1, 1], true, "baseColor");
+        graph.addNode(colorNode);
+        const bp = graph.compile();
+        if (!bp) {
+            throw new Error(`[WgpuRenderer] Default shader compilation failed: ${graph.diag.lastErr()?.raw}`);
+        }
+        return new GShader(bp, graph);
     }
 
     /**
-     * Builds or rebuilds the Aflow execution graph.
-     * Flow structure: FrameStart -> RenderPass -> SceneDrawStep -> EndPass -> FrameEnd.
+     * Builds the pass-level steps: RenderPass, SceneDrawStep, and EndPass.
      */
-    buildRenderFlow(): void {
-        this.flow = new Aflow<AwgpuCtx>();
-
-        const frameStart = new BeginFrame("WeebRenderFrameStart");
-        const renderPass = new RenderPass({
-            label: "WeebRenderPass",
+    buildPassSteps(): void {
+        this.renderPassStep = new RenderPass({
+            label: `${this.label}_Pass`,
             colorAttachments: (ctx: AwgpuCtx) => [
                 {
-                    view: ctx.canvasCtx!.getCurrentTexture().createView(),
+                    view: this.target
+                        ? this.target.gpuView
+                        : ctx.canvasCtx!.getCurrentTexture().createView(),
                     clearValue: this.clearColor,
                     loadOp: "clear",
                     storeOp: "store",
@@ -282,39 +334,84 @@ export class WgpuRenderer {
                 depthStoreOp: "store",
             }),
         });
-        const sceneDraw = new SceneDrawStep(this);
-        const endPass = new EndPass();
-        const frameEnd = new EndFrame();
-
-        this.flow.addNode({ id: "frame_start", payload: frameStart });
-        this.flow.addNode({ id: "render_pass", payload: renderPass });
-        this.flow.addNode({ id: "scene_draw",  payload: sceneDraw });
-        this.flow.addNode({ id: "end_pass",    payload: endPass });
-        this.flow.addNode({ id: "frame_end",   payload: frameEnd });
-
-        this.flow.addLink("frame_start", "render_pass");
-        this.flow.addLink("render_pass", "scene_draw");
-        this.flow.addLink("scene_draw",  "end_pass");
-        this.flow.addLink("end_pass",    "frame_end");
+        this.sceneDrawStep = new SceneDrawStep(this);
+        this.endPassStep = new EndPass();
     }
 
     /**
-     * Updates depth texture to match canvas dimensions.
+     * Attaches this renderer to a parent Aflow node.
+     * Installs RenderPass, SceneDrawStep, and EndPass into the node's payload array.
      */
-    resizeDepthTexture(): void {
+    attach(node: Anode<Acmp<AwgpuCtx>[]>): this {
+        if (this.parentNode && this.parentNode !== node) {
+            this.detach();
+        }
+        this.parentNode = node;
+        this.mountPassSteps();
+        return this;
+    }
+
+    /**
+     * Detaches this renderer from its current parent Aflow node.
+     */
+    detach(): this {
+        if (this.parentNode) {
+            this.unmountPassSteps();
+            this.parentNode = null;
+        }
+        return this;
+    }
+
+    private mountPassSteps(): void {
+        if (!this.parentNode || !this.renderPassStep || !this.sceneDrawStep || !this.endPassStep) return;
+        if (!Array.isArray(this.parentNode.data)) {
+            this.parentNode.data = [];
+        }
+        const filtered = this.parentNode.data.filter(
+            (c) => c !== this.renderPassStep && c !== this.sceneDrawStep && c !== this.endPassStep
+        );
+        filtered.push(this.renderPassStep, this.sceneDrawStep, this.endPassStep);
+        this.parentNode.data = filtered;
+    }
+
+    private unmountPassSteps(): void {
+        if (!this.parentNode || !Array.isArray(this.parentNode.data)) return;
+        this.parentNode.data = this.parentNode.data.filter(
+            (c) => c !== this.renderPassStep && c !== this.sceneDrawStep && c !== this.endPassStep
+        );
+    }
+
+    /**
+     * Sets or clears the active offscreen render target texture.
+     * When null, renders to the canvas swapchain view.
+     */
+    setTarget(target: WgpuTexture | null): this {
+        this.target = target;
+        this.resizeDepthTexture();
+        return this;
+    }
+
+    /**
+     * Updates depth texture to match target or canvas dimensions.
+     */
+    resizeDepthTexture(width?: number, height?: number): void {
         const device = this.backend?.device;
         if (!device) return;
 
-        const width = Math.max(1, this.canvas.width);
-        const height = Math.max(1, this.canvas.height);
+        const w = width ?? (this.target ? this.target.width : Math.max(1, this.canvas.width));
+        const h = height ?? (this.target ? this.target.height : Math.max(1, this.canvas.height));
+
+        if (this.depthTexture && this.depthTexture.width === w && this.depthTexture.height === h) {
+            return;
+        }
 
         if (this.depthTexture) {
             this.depthTexture.destroy();
         }
 
         this.depthTexture = device.createTexture({
-            label: "DepthTexture",
-            size: [width, height, 1],
+            label: `${this.label}_DepthTexture`,
+            size: [w, h, 1],
             format: "depth24plus",
             usage: GPUTextureUsage.RENDER_ATTACHMENT,
         });
@@ -655,29 +752,44 @@ export class WgpuRenderer {
     }
 
     /**
-     * Renders a complete frame using the compiled Aflow execution graph.
+     * Updates active scene and camera state for the upcoming pass.
      */
-    render(ecs: Aecs, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): void {
-        if (!this.flow || !this.backend) return;
-
-        // Auto-check canvas drawing buffer dimensions and resize depth texture if mismatched
-        const width = Math.max(1, this.canvas.width);
-        const height = Math.max(1, this.canvas.height);
-        if (!this.depthTexture || this.depthTexture.width !== width || this.depthTexture.height !== height) {
-            this.resizeDepthTexture();
-        }
-
+    setScene(ecs: Aecs, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): this {
         this.currentEcs = ecs;
         this.currentCamera = camera;
         if (clearColor) {
             this.clearColor = { ...clearColor };
         }
+        if (!this.target) {
+            const width = Math.max(1, this.canvas.width);
+            const height = Math.max(1, this.canvas.height);
+            if (!this.depthTexture || this.depthTexture.width !== width || this.depthTexture.height !== height) {
+                this.resizeDepthTexture(width, height);
+            }
+        }
+        return this;
+    }
 
-        // Execute render graph with a fresh frame context
+    /**
+     * Executes a complete render frame in standalone mode.
+     * When orchestrating multiple passes with external Aflow, stage scene state
+     * via `setScene(...)` and execute the Aflow DAG instead.
+     */
+    render(ecs: Aecs, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): void {
+        this.setScene(ecs, camera, clearColor);
+        if (!this.backend?.device) return;
+
         const ctx = this.backend.newCtx();
-        this.flow.run("frame_start", { ctx });
+        this.standaloneStartStep.exec(ctx);
+        if (this.renderPassStep) {
+            this.renderPassStep.exec(ctx);
+        }
+        if (this.sceneDrawStep) {
+            this.sceneDrawStep.exec(ctx);
+        }
+        if (this.endPassStep) {
+            this.endPassStep.exec(ctx);
+        }
+        this.standaloneEndStep.exec(ctx);
     }
 }
-
-// Backwards compatibility alias
-export { WgpuRenderer as WeebRenderer };

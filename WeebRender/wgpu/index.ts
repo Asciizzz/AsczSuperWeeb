@@ -4,9 +4,13 @@ export { WgpuShader, GShader, type WgpuShaderPayload } from "./wshader.js";
 export { compileWgsl, type WgslCompileOptions } from "./wgsl.js";
 export {
     WgpuRenderer,
-    WeebRenderer,
     SceneDrawStep,
+    BeginFrame,
+    EndFrame,
     FrameStart,
     FrameEnd,
-    type WeebRendererOptions,
+    RenderPass,
+    EndPass,
+    type AwgpuCtx,
+    type WgpuRendererOptions,
 } from "./renderer.js";
