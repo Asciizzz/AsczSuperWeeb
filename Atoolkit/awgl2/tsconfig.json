@@ -1,0 +1,14 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "lib": ["ES2022", "DOM"],
+        "rootDir": "",
+        "outDir": "../.tsc-dist/awgl2"
+    },
+    "references": [
+        { "path": "../adiag" },
+        { "path": "../acmp" }
+    ],
+    "include": ["**/*.ts"],
+    "exclude": ["dist"]
+}

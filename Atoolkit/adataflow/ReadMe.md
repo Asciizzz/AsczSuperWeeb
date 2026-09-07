@@ -1,0 +1,216 @@
+# Atoolkit/adataflow
+
+Standalone dataflow computation graph with extensible sockets, lightweight wire indexing, and unified topological execution (`node.process(packets, ctx)`).
+
+---
+
+## Architecture
+
+1. **`Asocket` Inheritance Base**:
+   - Holds socket `name` and optional `metadata`.
+   - Domain-specific types, ranges, widgets, or constraints subclass `Asocket` and attach custom properties (e.g. `ShaderSocket`).
+2. **`Awire` Topology Edge**:
+   - Directed connection `{ outNodeId, outSocket, inNodeId, inSocket, data?: TData }`.
+   - Returns directly from `df.connect(...)` for immediate handle tracking and targeted disconnection via `df.disconnect(wire)`.
+3. **`Packet` Transmission Model**:
+   - Every input delivered to a node arrives as a `Packet`: `{ value, wire }`.
+   - Eliminates parallel arrays and manual zipping.
+   - For multi-wire fan-in (`allowMultipleInput === true`), receives `Packet[]`, enabling direct sorting via wire metadata (`a.wire.data.order - b.wire.data.order`).
+4. **Causal Precedence**:
+   - Topological sorting via Kahn's algorithm ensures producer nodes process before consumer nodes. Cycles are detected and rejected.
+
+---
+
+## Core API
+
+### 1. Asocket
+
+Base unit representing a named socket:
+
+```typescript
+export class Asocket {
+    readonly name: string;
+    metadata: Record<string, unknown>;
+
+    constructor(name: string);
+}
+```
+
+### 2. Awire & Packet
+
+Directed connection and transmission container:
+
+```typescript
+export interface Awire<TData = any> {
+    outNodeId: string;
+    outSocket: string;
+    inNodeId: string;
+    inSocket: string;
+    data?: TData;
+}
+
+export interface Packet<T = any, TData = any> {
+    value: T;
+    wire?: Awire<TData>;
+}
+```
+
+### 3. Adfnode
+
+Base abstract unit of computation:
+
+```typescript
+export abstract class Adfnode {
+    readonly id: string;
+    readonly name: string;
+    readonly inputs: Map<string, Asocket>;
+    readonly outputs: Map<string, Asocket>;
+    metadata: Record<string, unknown>;
+
+    addInput(socketOrName: Asocket | string): this;
+    addOutput(socketOrName: Asocket | string): this;
+
+    getInput<T extends Asocket = Asocket>(name: string): T | undefined;
+    getOutput<T extends Asocket = Asocket>(name: string): T | undefined;
+
+    allowMultipleInput(socketName: string): boolean;
+    canConnectInput(inSocketName: string, outNode: Adfnode, outSocketName: string, data?: any): boolean;
+
+    process?(
+        packets: Record<string, any>,
+        ctx?: ProcessCtx<any>
+    ): Record<string, any> | void;
+}
+```
+
+### 4. Adataflow
+
+Standalone graph manager orchestrating socket wires and topological execution:
+
+```typescript
+export class Adataflow {
+    constructor(options?: AdataflowOptions);
+
+    addNode(node: Adfnode): this;
+    getNode<T extends Adfnode = Adfnode>(id: string): T | undefined;
+    hasNode(id: string): boolean;
+    removeNode(id: string): this;
+
+    connect<TData = any>(
+        outNodeOrId: Adfnode | string,
+        outSocketName: string,
+        inNodeOrId: Adfnode | string,
+        inSocketName: string,
+        data?: TData
+    ): Awire<TData>;
+
+    disconnect(wireOrNodeId: Awire | Adfnode | string, inSocketName?: string): boolean;
+    disconnectAll(nodeOrId: Adfnode | string): this;
+
+    topoSort<T extends Adfnode = Adfnode>(): T[];
+
+    run<TCtx = unknown>(
+        options?: RunOptions<TCtx, Adfnode>
+    ): RunResult<Adfnode>;
+
+    process<TCtx = unknown>(
+        options?: RunOptions<TCtx, Adfnode>
+    ): RunResult<Adfnode>;
+}
+```
+
+---
+
+## Code Examples
+
+### 1. Math Calculation with Packet Inputs
+
+```typescript
+import { Adataflow, Adfnode, type Packet } from "../Atoolkit/adataflow/index.js";
+
+class NumberNode extends Adfnode {
+    value: number;
+    constructor(id: string, value: number) {
+        super(id, "Number");
+        this.value = value;
+        this.addOutput("out");
+    }
+    override process() {
+        return { out: this.value };
+    }
+}
+
+class AddNode extends Adfnode {
+    constructor(id: string) {
+        super(id, "Add");
+        this.addInput("a").addInput("b").addOutput("sum");
+    }
+    override process(packets: Record<string, Packet<number> | undefined>) {
+        const a = packets.a?.value ?? 0;
+        const b = packets.b?.value ?? 0;
+        return { sum: a + b };
+    }
+}
+
+class MultiplyNode extends Adfnode {
+    constructor(id: string) {
+        super(id, "Multiply");
+        this.addInput("a").addInput("b").addOutput("product");
+    }
+    override process(packets: Record<string, Packet<number> | undefined>) {
+        const a = packets.a?.value ?? 1;
+        const b = packets.b?.value ?? 1;
+        return { product: a * b };
+    }
+}
+
+// Build: (5 + 10) * 3
+const df = new Adataflow();
+const n1 = new NumberNode("n1", 5);
+const n2 = new NumberNode("n2", 10);
+const n3 = new NumberNode("n3", 3);
+const add = new AddNode("add");
+const mul = new MultiplyNode("mul");
+
+const w1 = df.connect(n1, "out", add, "a");
+const w2 = df.connect(n2, "out", add, "b");
+const w3 = df.connect(add, "sum", mul, "a");
+const w4 = df.connect(n3, "out", mul, "b");
+
+const res = df.run();
+console.log(res.outputs.get("mul")?.product); // 45
+```
+
+### 2. Multi-Wire Fan-In with Wire Ordering
+
+```typescript
+import { Adfnode, type Packet } from "../Atoolkit/adataflow/index.js";
+
+class MultiJoinNode extends Adfnode {
+    delimiter: string;
+
+    constructor(id: string, delimiter = ", ") {
+        super(id, "Multi-Join");
+        this.delimiter = delimiter;
+        this.addInput("items");
+        this.addOutput("out");
+    }
+
+    override allowMultipleInput(socketName: string): boolean {
+        return socketName === "items";
+    }
+
+    override process(packets: Record<string, Packet<string>[]>) {
+        const items = (packets.items ?? []).slice();
+
+        // Sort items directly using wire metadata (e.g. { order: number })
+        items.sort((a, b) => {
+            const orderA = (a.wire?.data as any)?.order ?? 0;
+            const orderB = (b.wire?.data as any)?.order ?? 0;
+            return orderA - orderB;
+        });
+
+        return { out: items.map(p => p.value).filter(Boolean).join(this.delimiter) };
+    }
+}
+```
