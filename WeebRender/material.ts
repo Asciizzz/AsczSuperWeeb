@@ -1,24 +1,23 @@
 import { Acmp } from "../Atoolkit/acmp/index.js";
-import type { GTexture } from "./wgpu/gtexture.js";
-import type { GShader } from "./wgpu/gshader.js";
+import type { GpuTexture, GpuShader } from "./gpu.js";
 
-export type MaterialParamValue = number | number[] | Float32Array | GTexture | null;
+export type MaterialParamValue = number | number[] | Float32Array | GpuTexture | null;
 export type MaterialParamRecord = Record<string, MaterialParamValue>;
 
 export interface MaterialSlot {
-    shader?: GShader;
+    shader?: GpuShader;
     params?: MaterialParamRecord | null;
 }
 
 /**
- * ECS component holding shader references (GShader) and parameter overrides per slot.
+ * ECS component holding shader references (GpuShader) and parameter overrides per slot.
  */
 export class MaterialCmp extends Acmp {
-    shaders: (GShader | null)[];
+    shaders: (GpuShader | null)[];
     params: (MaterialParamRecord | null)[];
 
     constructor(
-        shaders: (GShader | null)[] | GShader = [],
+        shaders: (GpuShader | null)[] | GpuShader = [],
         params: (MaterialParamRecord | null)[] | MaterialParamRecord = []
     ) {
         super();
@@ -42,14 +41,14 @@ export class MaterialCmp extends Acmp {
     /**
      * Gets the shader assigned to a slot.
      */
-    getShader(slot = 0): GShader | null | undefined {
+    getShader(slot = 0): GpuShader | null | undefined {
         return this.shaders[slot];
     }
 
     /**
      * Assigns a shader to a slot.
      */
-    setShader(slot: number, shader: GShader | null): this {
+    setShader(slot: number, shader: GpuShader | null): this {
         this.shaders[slot] = shader;
         return this;
     }

@@ -1,6 +1,7 @@
-export { GMesh, type GMeshOptions } from "./gmesh.js";
-export { GTexture, type GTextureOptions, type GTextureRefOptions } from "./gtexture.js";
-export { GShader } from "./gshader.js";
+export { WgpuMesh, GMesh, type WgpuMeshOptions, type GMeshOptions, type WgpuMeshPayload } from "./wmesh.js";
+export { WgpuTexture, GTexture, type WgpuTextureOptions, type GTextureOptions, type WgpuTextureRefOptions, type GTextureRefOptions, type WgpuTexturePayload } from "./wtexture.js";
+export { WgpuShader, GShader, type WgpuShaderPayload } from "./wshader.js";
+export { compileWgsl, type WgslCompileOptions } from "./wgsl.js";
 export {
     WgpuRenderer,
     WeebRenderer,

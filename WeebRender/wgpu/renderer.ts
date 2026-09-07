@@ -21,9 +21,9 @@ import { MaterialCmp, type MaterialParamRecord } from "../material.js";
 import { ShaderParamsCmp } from "../shader/params.js";
 import { createDefaultShader } from "../shader/presets.js";
 
-import { GMesh } from "./gmesh.js";
-import { GTexture } from "./gtexture.js";
-import { GShader } from "./gshader.js";
+import { WgpuMesh, GMesh } from "./wmesh.js";
+import { WgpuTexture, GTexture } from "./wtexture.js";
+import { WgpuShader, GShader } from "./wshader.js";
 
 // Re-export frame boundary Acmp steps for explicit frame control
 export { BeginFrame as FrameStart, EndFrame as FrameEnd };
@@ -133,6 +133,32 @@ export class WgpuRenderer {
             throw new Error("[WgpuRenderer.createTexture] Renderer must be initialized with init() before creating GPU textures.");
         }
         return GTexture.fromTexture(this.backend.device, texture);
+    }
+
+    /**
+     * Helper factory: Allocates a GPU render target texture for Render-to-Texture (RTT).
+     * Returns a WgpuTexture (GpuTexture) that can be sampled by ShaderGraph or used as an offscreen target.
+     */
+    createRenderTarget(width: number, height: number, label = "RenderTarget"): WgpuTexture {
+        if (!this.backend?.device) {
+            throw new Error("[WgpuRenderer.createRenderTarget] Renderer must be initialized with init() before creating render targets.");
+        }
+        const w = Math.max(1, width);
+        const h = Math.max(1, height);
+        const device = this.backend.device;
+        const gpuTexture = device.createTexture({
+            label,
+            size: [w, h, 1],
+            format: this.backend.format ?? "bgra8unorm",
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        const gpuView = gpuTexture.createView();
+        const gpuSampler = device.createSampler({
+            label: `${label}_Sampler`,
+            magFilter: "linear",
+            minFilter: "linear",
+        });
+        return new WgpuTexture(label, gpuTexture, gpuView, gpuSampler, w, h, true);
     }
 
     /**
@@ -493,7 +519,7 @@ export class WgpuRenderer {
         // 3. Flat Query: ECS Entities with MeshCmp (holding GMesh)
         for (const [entity, meshCmp] of ecs.query(MeshCmp)) {
             if (!meshCmp.visible) continue;
-            const gMesh = meshCmp.rMesh;
+            const gMesh = meshCmp.rMesh as GMesh;
             if (!gMesh || !gMesh.vertexBuffer || !gMesh.indexBuffer || gMesh.indexCount === 0) continue;
 
             // Resolve Transform: If missing, fallback to identity matrix (0, 0, 0)
@@ -526,9 +552,9 @@ export class WgpuRenderer {
                 if (submesh.visible === false) continue;
 
                 // Shader resolution: MaterialCmp slot sIdx -> MaterialCmp slot 0 -> defaultShader
-                const shader = materialCmp?.shaders[sIdx]
+                const shader = (materialCmp?.shaders[sIdx]
                     ?? materialCmp?.shaders[0]
-                    ?? this.defaultShader;
+                    ?? this.defaultShader) as GShader | null | undefined;
                 if (!shader) continue;
 
                 // Determine whether skinning should be active for this mesh

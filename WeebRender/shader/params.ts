@@ -1,6 +1,6 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import type { Texture } from "../texture.js";
-import type { GShader } from "../wgpu/gshader.js";
+import type { GShader } from "../gpu.js";
 import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
 
 /**

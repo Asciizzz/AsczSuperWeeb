@@ -1,4 +1,4 @@
-import { ShaderNode, type NodeCompileContext } from "./base.js";
+import { ShaderNode } from "./base.js";
 
 export interface BasicShadingOptions {
     ambient?: number;
@@ -60,28 +60,5 @@ export class BasicShadingNode extends ShaderNode {
 
         // Shaded result output socket
         this.addOutput({ name: "out", type: "vec4" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        const inColor = ctx.inputs["color"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-        const inAmbient = ctx.inputs["ambient"] ?? `${this.defaultAmbient.toFixed(4)}`;
-        const inDiffuse = ctx.inputs["diffuse"] ?? `${this.defaultDiffuse.toFixed(4)}`;
-        const [lx, ly, lz] = this.defaultLightDir;
-        const inLightDir =
-            ctx.inputs["lightDir"] ??
-            `normalize(vec3<f32>(${lx.toFixed(4)}, ${ly.toFixed(4)}, ${lz.toFixed(4)}))`;
-
-        return `
-            let ${p}_inColor = ${inColor};
-            let ${p}_normLen = length(in.normal);
-            let ${p}_N = select(vec3<f32>(0.0, 1.0, 0.0), in.normal / max(${p}_normLen, 0.0001), ${p}_normLen > 0.0001);
-            let ${p}_keyDir = ${inLightDir};
-            let ${p}_keyDiff = max(dot(${p}_N, ${p}_keyDir), 0.0);
-            let ${p}_fillDir = normalize(vec3<f32>(-0.6, 0.2, -0.4));
-            let ${p}_fillDiff = max(dot(${p}_N, ${p}_fillDir), 0.0) * 0.35;
-            let ${p}_intensity = ${inAmbient} + ${p}_keyDiff * ${inDiffuse} + ${p}_fillDiff;
-            let ${p}_out = vec4<f32>(${p}_inColor.rgb * ${p}_intensity, ${p}_inColor.a);
-        `;
     }
 }

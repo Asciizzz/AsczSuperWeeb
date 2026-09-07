@@ -1,4 +1,4 @@
-import { ShaderNode, type NodeCompileContext } from "./base.js";
+import { ShaderNode } from "./base.js";
 
 /**
  * Interface implemented by nodes that declare GPU uniform parameters or texture bindings.
@@ -72,14 +72,6 @@ export class ParamVec4Node extends ShaderNode implements ShaderParamProvider {
     set defaultColor(val: number[]) {
         this.defaultValue = val;
     }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        return `
-    let ${p}_color: vec4<f32> = ${ctx.uniformVarName}.${this.paramName};
-    let ${p}_rgb: vec3<f32> = ${p}_color.rgb;
-    let ${p}_alpha: f32 = ${p}_color.a;`;
-    }
 }
 
 export interface ParamFloatOptions {
@@ -121,10 +113,5 @@ export class ParamFloatNode extends ShaderNode implements ShaderParamProvider {
         this.defaultValue = def;
 
         this.addOutput({ name: "value", type: "float" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        return `let ${p}_value: f32 = ${ctx.uniformVarName}.${this.paramName};`;
     }
 }

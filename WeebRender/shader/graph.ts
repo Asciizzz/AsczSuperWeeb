@@ -1,4 +1,4 @@
-import { Adataflow, type Awire } from "../../Atoolkit/adataflow/index.js";
+import { Adataflow } from "../../Atoolkit/adataflow/index.js";
 import { Adiag } from "../../Atoolkit/adiag/index.js";
 import {
     ShaderNode,
@@ -9,36 +9,39 @@ import {
     ParamVec4Node,
     ParamFloatNode,
     isShaderParam,
-    type NodeCompileContext,
 } from "./nodes.js";
 import type {
-    SocketType,
     ShaderParamLayout,
     UniformParamDef,
     TextureParamDef,
 } from "./types.js";
-import type { Texture } from "../texture.js";
-import type { ShaderProcessCtx } from "./nodes.js";
 
 export interface CompiledShaderBlueprint {
     name: string;
-    wgsl: string;
-    wgslSkinned?: string;
-    getWgsl?: (skinned: boolean) => string;
+    code: string;
+    codeSkinned?: string;
+    getCode?: (skinned: boolean) => string;
     paramLayout: ShaderParamLayout;
     textureNodes: TextureSampleNode[];
     orderedNodes: ShaderNode[];
     skinned: boolean;
-    cullMode?: GPUCullMode;
-    topology?: GPUPrimitiveTopology;
+    cullMode?: "none" | "front" | "back";
+    topology?: "point-list" | "line-list" | "line-strip" | "triangle-list" | "triangle-strip";
 }
+
+export type ShaderCompiler<TOptions = any> = (
+    graph: ShaderGraph,
+    options?: TOptions
+) => CompiledShaderBlueprint | null;
 
 /**
  * Directed acyclic graph of shader micro-nodes connected via typed sockets.
- * Extends the generic Adataflow computation graph, specializing it for WebGPU WGSL generation
- * and uniform buffer memory layouts.
+ * Extends the generic Adataflow computation graph, purely representing shader AST topology
+ * and uniform buffer memory layouts without binding to any specific graphics API or shading language.
  */
 export class ShaderGraph extends Adataflow {
+    static defaultCompiler?: ShaderCompiler;
+
     readonly name: string;
     readonly diag: Adiag;
     private _lastOutputNode: OutputNode;
@@ -76,26 +79,12 @@ export class ShaderGraph extends Adataflow {
     }
 
     /**
-     * Compiles the node graph into WGSL shader code and precomputes uniform layouts.
-     * Validates parameter name uniqueness across uniform nodes and texture sample nodes.
-     * Returns null and records diagnostic errors if duplicate parameter names are encountered.
+     * Validates that parameter names across uniform nodes and texture sample nodes are unique.
+     * Records diagnostic errors if duplicates are encountered.
      */
-    compile(options: {
-        target?: string;
-        meta?: Record<string, unknown>;
-        skinned?: boolean;
-        cullMode?: GPUCullMode;
-        topology?: GPUPrimitiveTopology;
-        diag?: Adiag;
-    } = {}): CompiledShaderBlueprint | null {
-        const skinned = !!options.skinned;
-        const diag = options.diag ?? this.diag;
-        diag.clear();
-
-        // 1. Topological Sort via Adataflow
+    validateParams(diag?: Adiag): boolean {
+        const d = diag ?? this.diag;
         const sortedNodes = this.topoSort() as ShaderNode[];
-
-        // 2. Validate Parameter Name Uniqueness Across All Nodes
         const seenParams = new Map<string, ShaderNode>();
         let hasDuplicate = false;
 
@@ -110,7 +99,7 @@ export class ShaderGraph extends Adataflow {
             if (pName) {
                 const existing = seenParams.get(pName);
                 if (existing) {
-                    diag.err({
+                    d.err({
                         code: "ERR_DUPLICATE_SHADER_PARAM",
                         raw: `Duplicate parameter name "${pName}" on node "${node.id}" (conflicts with node "${existing.id}")`,
                         data: {
@@ -126,18 +115,24 @@ export class ShaderGraph extends Adataflow {
             }
         }
 
-        if (hasDuplicate) {
-            return null;
-        }
+        return !hasDuplicate;
+    }
 
-        // 3. Identify All Parameters and Textures
+    /**
+     * Precomputes uniform buffer byte layouts, offsets, and texture slot bindings.
+     */
+    buildParamLayout(sortedNodes?: ShaderNode[]): {
+        paramLayout: ShaderParamLayout;
+        textureNodes: TextureSampleNode[];
+    } {
+        const nodes = sortedNodes ?? (this.topoSort() as ShaderNode[]);
         const uniformsMap = new Map<string, UniformParamDef>();
         const texturesMap = new Map<string, TextureParamDef>();
         const textureNodes: TextureSampleNode[] = [];
 
         let currentByteOffset = 0;
 
-        for (const node of sortedNodes) {
+        for (const node of nodes) {
             if (node instanceof TextureSampleNode) {
                 const texIdx = textureNodes.length;
                 node.textureIndex = texIdx;
@@ -176,7 +171,7 @@ export class ShaderGraph extends Adataflow {
             }
         }
 
-        // Align total uniform buffer size to 16-byte boundary (WebGPU uniform buffer requirement)
+        // Align total uniform buffer size to 16-byte boundary
         const totalUniformBytes = Math.max(16, Math.ceil(currentByteOffset / 16) * 16);
         const defaultUniformData = new Float32Array(totalUniformBytes / 4);
 
@@ -197,150 +192,39 @@ export class ShaderGraph extends Adataflow {
             defaultUniformData,
         };
 
-        // 3. Execute dataflow run to process nodes and collect WGSL statements
-        const statements: string[] = [];
-        this.run<ShaderProcessCtx>({
-            ctx: { statements, uniformVarName: "uMaterial" },
-        });
-
-        // 4. Assemble WGSL shader for both static and skinned vertex configurations
-        const wgslStatic = this.assembleWGSL(paramLayout, textureNodes, statements, false);
-        const wgslSkinned = this.assembleWGSL(paramLayout, textureNodes, statements, true);
-        const getWgsl = (isSkinned: boolean) => isSkinned ? wgslSkinned : wgslStatic;
-        const defaultWgsl = skinned ? wgslSkinned : wgslStatic;
-
-        return {
-            name: this.name,
-            wgsl: defaultWgsl,
-            wgslSkinned,
-            getWgsl,
-            paramLayout,
-            textureNodes,
-            orderedNodes: sortedNodes,
-            skinned: options.skinned ?? true,
-            cullMode: options.cullMode,
-            topology: options.topology,
-        };
+        return { paramLayout, textureNodes };
     }
 
-    private assembleWGSL(
-        paramLayout: ShaderParamLayout,
-        textureNodes: TextureSampleNode[],
-        statements: string[],
-        skinned = false
-    ): string {
-        // Material Uniforms Struct in Group 2 Binding 0
-        const fields: string[] = [];
-        for (const u of paramLayout.uniforms.values()) {
-            if (u.type === "vec4") {
-                fields.push(`    ${u.name}: vec4<f32>,`);
-            } else if (u.type === "float") {
-                fields.push(`    ${u.name}: f32,`);
-            }
-        }
-        if (fields.length === 0) {
-            fields.push("    _dummy: vec4<f32>,");
-        }
+    /**
+     * Compiles the node graph using the registered shader compiler (or compiler specified in options).
+     * Returns null and records diagnostic errors if compilation fails.
+     */
+    compile(options: {
+        target?: string;
+        meta?: Record<string, unknown>;
+        skinned?: boolean;
+        cullMode?: "none" | "front" | "back";
+        topology?: "point-list" | "line-list" | "line-strip" | "triangle-list" | "triangle-strip";
+        diag?: Adiag;
+        compiler?: ShaderCompiler;
+        [key: string]: unknown;
+    } = {}): CompiledShaderBlueprint | null {
+        const diag = options.diag ?? this.diag;
+        diag.clear();
 
-        const materialStructWGSL = `
-            struct MaterialUniforms {
-            ${fields.join("\n")}
-        };`;
-        const materialBindingWGSL = `@group(2) @binding(0) var<uniform> uMaterial: MaterialUniforms;`;
-
-        const skinBindingWGSL = skinned
-            ? `@group(3) @binding(0) var<storage, read> uBones: array<mat4x4<f32>>;`
-            : "";
-
-        // Texture Bindings at @group(2) starting at binding 1
-        const textureBindingsWGSL: string[] = [];
-        for (let i = 0; i < textureNodes.length; i++) {
-            textureBindingsWGSL.push(
-                `@group(2) @binding(${1 + i * 2}) var t_tex_${i}: texture_2d<f32>;\n` +
-                `@group(2) @binding(${2 + i * 2}) var s_tex_${i}: sampler;`
-            );
+        if (!this.validateParams(diag)) {
+            return null;
         }
 
-        const vertexInputWGSL = skinned
-            ? `struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) uv: vec2<f32>,
-    @location(3) joints: vec4<u32>,
-    @location(4) weights: vec4<f32>,
-};`
-            : `struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) uv: vec2<f32>,
-};`;
+        const compiler = options.compiler ?? ShaderGraph.defaultCompiler;
+        if (!compiler) {
+            diag.err({
+                code: "ERR_NO_SHADER_COMPILER",
+                raw: `No shader compiler registered for ShaderGraph "${this.name}". Register ShaderGraph.defaultCompiler or supply options.compiler.`,
+            });
+            return null;
+        }
 
-        const vsBodyWGSL = skinned
-            ? `    var out: VertexOutput;
-    let skinMat =
-        in.weights.x * uBones[in.joints.x] +
-        in.weights.y * uBones[in.joints.y] +
-        in.weights.z * uBones[in.joints.z] +
-        in.weights.w * uBones[in.joints.w];
-    let localSkinnedPos = skinMat * vec4<f32>(in.position, 1.0);
-    let worldPos4 = uObject.model * localSkinnedPos;
-    out.worldPos = worldPos4.xyz;
-    out.clipPos = uCamera.viewProj * worldPos4;
-    let localSkinnedNorm = (skinMat * vec4<f32>(in.normal, 0.0)).xyz;
-    out.normal = normalize((uObject.model * vec4<f32>(localSkinnedNorm, 0.0)).xyz);
-    out.uv = in.uv;
-    return out;`
-            : `    var out: VertexOutput;
-    let worldPos4 = uObject.model * vec4<f32>(in.position, 1.0);
-    out.worldPos = worldPos4.xyz;
-    out.clipPos = uCamera.viewProj * worldPos4;
-    out.normal = normalize((uObject.model * vec4<f32>(in.normal, 0.0)).xyz);
-    out.uv = in.uv;
-    return out;`;
-
-        // Fragment Body statements from dataflow run
-        const fragmentCodeLines = statements;
-
-        return /* wgsl */ `
-struct CameraUniforms {
-    viewProj: mat4x4<f32>,
-    cameraPos: vec4<f32>,
-};
-
-struct ObjectUniforms {
-    model: mat4x4<f32>,
-};
-
-${materialStructWGSL}
-
-@group(0) @binding(0) var<uniform> uCamera: CameraUniforms;
-@group(1) @binding(0) var<uniform> uObject: ObjectUniforms;
-${materialBindingWGSL}
-${skinBindingWGSL}
-
-${textureBindingsWGSL.join("\n")}
-
-${vertexInputWGSL}
-
-struct VertexOutput {
-    @builtin(position) clipPos: vec4<f32>,
-    @location(0) worldPos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) uv: vec2<f32>,
-};
-
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
-${vsBodyWGSL}
-}
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    var finalSurfaceColor: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-${fragmentCodeLines.join("\n")}
-
-    return finalSurfaceColor;
-}
-`;
+        return compiler(this, options);
     }
 }

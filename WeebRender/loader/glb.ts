@@ -1,9 +1,10 @@
 import { Mesh, MeshCmp, type Submesh, type VertexAttribute } from "../mesh.js";
-import { GMesh } from "../wgpu/gmesh.js";
+import { GMesh } from "../wgpu/wmesh.js";
+import { GTexture } from "../wgpu/wtexture.js";
 import { Skeleton, type Joint, SkinCmp } from "../skeleton.js";
 import { TransformCmp } from "../transform.js";
 import { MaterialCmp } from "../material.js";
-import { GShader } from "../wgpu/gshader.js";
+import { GShader } from "../wgpu/wshader.js";
 import { createColorShader, createTextureShader } from "../shader/presets.js";
 import { Texture } from "../texture.js";
 import { STANDARD_ATTRIBUTES, SKINNED_ATTRIBUTES } from "../extensions/presets.js";
@@ -570,9 +571,9 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
                 const matIdx = submeshMatSlots[i];
                 const mat = materials[matIdx];
                 if (mat?.baseTexture) {
-                    submeshShaders.push(createTextureShader(mat.baseTexture, mat.baseColorFactor, `${modelName}_TexShader`));
+                    submeshShaders.push(createTextureShader(null, mat.baseColorFactor, `${modelName}_TexShader`));
                     submeshParams.push({
-                        mainTexture: mat.baseTexture,
+                        mainTexture: null,
                         tintColor: mat.baseColorFactor,
                     });
                 } else {
@@ -692,9 +693,9 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
             const matIdx = submeshMatSlots[i];
             const mat = materials[matIdx];
             if (mat?.baseTexture) {
-                submeshShaders.push(createTextureShader(mat.baseTexture, mat.baseColorFactor, `${modelName}_TexShader`));
+                submeshShaders.push(createTextureShader(null, mat.baseColorFactor, `${modelName}_TexShader`));
                 submeshParams.push({
-                    mainTexture: mat.baseTexture,
+                    mainTexture: null,
                     tintColor: mat.baseColorFactor,
                 });
             } else {
@@ -758,8 +759,25 @@ export function spawnLoadedModel(
         transform = new TransformCmp();
     }
 
-    if (!model.gMesh && device) {
-        model.gMesh = GMesh.fromMesh(device, model.mesh);
+    if (device) {
+        if (!model.gMesh) {
+            model.gMesh = GMesh.fromMesh(device, model.mesh);
+        }
+        for (let mIdx = 0; mIdx < model.materials.length; mIdx++) {
+            const mat = model.materials[mIdx];
+            if (mat.baseTexture && !mat.gTexture) {
+                mat.gTexture = GTexture.fromTexture(device, mat.baseTexture);
+            }
+        }
+        if (model.materialCmp) {
+            for (let sIdx = 0; sIdx < model.materialCmp.params.length; sIdx++) {
+                const params = model.materialCmp.params[sIdx];
+                const mat = model.materials[sIdx] ?? model.materials[0];
+                if (params && mat?.gTexture) {
+                    params.mainTexture = mat.gTexture;
+                }
+            }
+        }
     }
 
     if (!model.gMesh) {

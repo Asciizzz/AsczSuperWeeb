@@ -1,7 +1,7 @@
 import { ShaderGraph } from "./graph.js";
 import { ColorNode, TextureSampleNode, BlendNode, FloatNode, BasicShadingNode } from "./nodes.js";
-import { GShader } from "../wgpu/gshader.js";
-import type { Texture } from "../texture.js";
+import { WgpuShader, GShader } from "../wgpu/wshader.js";
+import type { GpuTexture } from "../gpu.js";
 
 /**
  * Creates a shader that outputs a solid color, with parameter "baseColor".
@@ -30,7 +30,7 @@ export function createColorShader(
  * - "blendFactor" (float, default 0.5, controls linear interpolation for mode 3)
  */
 export function createTextureShader(
-    texture: Texture | null = null,
+    texture: GpuTexture | null = null,
     tint: number[] = [1, 1, 1, 1],
     name = "TextureShader"
 ): GShader {
@@ -104,7 +104,7 @@ export function createShadedColorShader(
  * Wire: blendNode -> basicShading.color (1 wire) -> outputNode.baseColor
  */
 export function createShadedTextureShader(
-    texture: Texture | null = null,
+    texture: GpuTexture | null = null,
     tint: number[] = [1, 1, 1, 1],
     ambient = 0.28,
     diffuse = 0.72,

@@ -1,19 +1,26 @@
+import { GpuShader } from "../gpu.js";
 import type { CompiledShaderBlueprint, ShaderGraph } from "../shader/graph.js";
 import type { ShaderParamLayout } from "../shader/types.js";
 import { ShaderParamsCmp } from "../shader/params.js";
 import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
+import { compileWgsl } from "./wgsl.js";
 
 let gShaderIdCounter = 0;
+
+export interface WgpuShaderPayload {
+    pipeline: GPURenderPipeline | null;
+    materialBindGroupLayout: GPUBindGroupLayout | null;
+    textureBindGroupLayout: GPUBindGroupLayout | null;
+    skinBindGroupLayout: GPUBindGroupLayout | null;
+}
 
 /**
  * WebGPU GPU-resident Shader wrapper.
  * Manages GPURenderPipeline, GPUBindGroupLayout, and WGSL shader modules.
+ * Extends GpuShader<WgpuShaderPayload> to provide typed WebGPU pipeline management.
  */
-export class GShader {
-    readonly id: number;
-    readonly name: string;
-    blueprint: CompiledShaderBlueprint;
-    paramLayout: ShaderParamLayout;
+export class WgpuShader extends GpuShader<WgpuShaderPayload> {
+    readonly numericId: number;
     readonly skinned: boolean;
     cullMode: GPUCullMode;
     topology: GPUPrimitiveTopology;
@@ -30,19 +37,41 @@ export class GShader {
     private shaderModule: GPUShaderModule | null = null;
     private pipelineLayout: GPUPipelineLayout | null = null;
 
-    constructor(blueprint: CompiledShaderBlueprint, graph?: ShaderGraph) {
-        this.id = ++gShaderIdCounter;
-        this.name = blueprint.name;
-        this.blueprint = blueprint;
-        this.paramLayout = blueprint.paramLayout;
+    constructor(blueprintOrGraph: CompiledShaderBlueprint | ShaderGraph, maybeGraph?: ShaderGraph) {
+        let blueprint: CompiledShaderBlueprint;
+        let graph: ShaderGraph | undefined;
+
+        if ("compile" in blueprintOrGraph && typeof (blueprintOrGraph as any).compile === "function") {
+            graph = blueprintOrGraph as ShaderGraph;
+            const compiled = compileWgsl(graph);
+            if (!compiled) {
+                throw new Error(`[WgpuShader] Failed to compile ShaderGraph "${graph.name}": ${graph.diag.lastErr()?.raw ?? "unknown error"}`);
+            }
+            blueprint = compiled;
+        } else {
+            blueprint = blueprintOrGraph as CompiledShaderBlueprint;
+            graph = maybeGraph;
+        }
+
+        super(blueprint.name, blueprint, blueprint.paramLayout, {
+            pipeline: null,
+            materialBindGroupLayout: null,
+            textureBindGroupLayout: null,
+            skinBindGroupLayout: null,
+        }, true, graph);
+        this.numericId = ++gShaderIdCounter;
         this.skinned = !!blueprint.skinned;
-        this.cullMode = blueprint.cullMode ?? "back";
-        this.topology = blueprint.topology ?? "triangle-list";
+        this.cullMode = (blueprint.cullMode as GPUCullMode) ?? "back";
+        this.topology = (blueprint.topology as GPUPrimitiveTopology) ?? "triangle-list";
         this.graph = graph;
     }
 
-    get wgsl(): string {
-        return this.blueprint.wgsl;
+    destroy(): void {
+        this.invalidateGpu();
+    }
+
+    get code(): string {
+        return this.blueprint.code;
     }
 
     /**
@@ -95,12 +124,12 @@ export class GShader {
         // 1. Compile WGSL Shader Module per pipeline key if not already compiled
         let shaderModule = this.shaderModulesByKey.get(pipelineKey);
         if (!shaderModule) {
-            const wgslCode = this.blueprint.getWgsl
-                ? this.blueprint.getWgsl(isSkinned)
-                : (isSkinned && this.blueprint.wgslSkinned ? this.blueprint.wgslSkinned : this.blueprint.wgsl);
+            const shaderCode = this.blueprint.getCode
+                ? this.blueprint.getCode(isSkinned)
+                : (isSkinned && this.blueprint.codeSkinned ? this.blueprint.codeSkinned : this.blueprint.code);
             shaderModule = device.createShaderModule({
                 label: `ShaderModule_${this.name}_${this.id}_${pipelineKey}`,
-                code: wgslCode,
+                code: shaderCode,
             });
             this.shaderModulesByKey.set(pipelineKey, shaderModule);
         }
@@ -306,3 +335,7 @@ export class GShader {
         ];
     }
 }
+
+// Ergonomic alias
+export { WgpuShader as GShader };
+

@@ -33,20 +33,41 @@ export {
     Texture,
 } from "./texture.js";
 
-// WebGPU Hardware Data Wrappers & Renderer
+// Universal GPU Resource Handles & Type Guards
 export {
-    GMesh,
-    type GMeshOptions,
-    GTexture,
-    type GTextureOptions,
-    type GTextureRefOptions,
-    GShader,
+    GpuTexture,
+    GpuMesh,
+    GpuShader,
+    Shader,
+    isGpuTexture,
+    isGpuMesh,
+    isGpuShader,
+} from "./gpu.js";
+
+// WebGPU Hardware Implementation & Renderer
+export {
+    WgpuTexture,
+    type WgpuTextureOptions,
+    type WgpuTextureRefOptions,
+    type WgpuTexturePayload,
+    WgpuMesh,
+    type WgpuMeshOptions,
+    type WgpuMeshPayload,
+    WgpuShader,
+    type WgpuShaderPayload,
     WgpuRenderer,
     WeebRenderer,
     SceneDrawStep,
     FrameStart,
     FrameEnd,
     type WeebRendererOptions,
+    // Ergonomic aliases for the active backend
+    GTexture,
+    type GTextureOptions,
+    type GTextureRefOptions,
+    GMesh,
+    type GMeshOptions,
+    GShader,
 } from "./wgpu/index.js";
 
 // Namespace export for wgpu and wgl2

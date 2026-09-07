@@ -1,6 +1,6 @@
-import { ShaderNode, type NodeCompileContext } from "./base.js";
+import { ShaderNode } from "./base.js";
 import { type ShaderParamProvider } from "./params.js";
-import { Texture } from "../../texture.js";
+import { isGpuTexture, type GpuTexture } from "../../gpu.js";
 
 export interface ColorNodeOptions {
     color?: number[];
@@ -56,22 +56,6 @@ export class ColorNode extends ShaderNode implements ShaderParamProvider {
     set defaultValue(val: number[]) {
         this.defaultColor = val;
     }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        if (this.isParam && this.paramName) {
-            return `
-    let ${p}_color: vec4<f32> = ${ctx.uniformVarName}.${this.paramName};
-    let ${p}_rgb: vec3<f32> = ${p}_color.rgb;
-    let ${p}_alpha: f32 = ${p}_color.a;`;
-        }
-
-        const [r, g, b, a] = this.defaultColor;
-        return `
-    let ${p}_color: vec4<f32> = vec4<f32>(${r.toFixed(4)}, ${g.toFixed(4)}, ${b.toFixed(4)}, ${(a ?? 1.0).toFixed(4)});
-    let ${p}_rgb: vec3<f32> = ${p}_color.rgb;
-    let ${p}_alpha: f32 = ${p}_color.a;`;
-    }
 }
 
 /**
@@ -86,7 +70,7 @@ export class ConstColorNode extends ColorNode {
 }
 
 export interface TextureSampleOptions {
-    texture?: Texture | null;
+    texture?: GpuTexture | null;
     isParam?: boolean;
     paramName?: string;
 }
@@ -97,24 +81,24 @@ export interface TextureSampleOptions {
  * Outputs: "color" (vec4), "rgb" (vec3), "alpha" (float).
  */
 export class TextureSampleNode extends ShaderNode implements ShaderParamProvider {
-    defaultTexture: Texture | null;
+    defaultTexture: GpuTexture | null;
     textureIndex = 0; // Assigned during graph compilation
     isParam: boolean;
     paramName?: string;
 
     constructor(
         id: string,
-        textureOrOptions?: Texture | null | TextureSampleOptions,
+        textureOrOptions?: GpuTexture | null | TextureSampleOptions,
         isParam = false,
         paramName?: string
     ) {
-        let tex: Texture | null = null;
+        let tex: GpuTexture | null = null;
         let paramFlag = isParam;
         let pName = paramName;
 
-        if (textureOrOptions instanceof Texture || textureOrOptions === null) {
+        if (isGpuTexture(textureOrOptions) || textureOrOptions === null) {
             tex = textureOrOptions;
-        } else if (textureOrOptions && typeof textureOrOptions === "object") {
+        } else if (textureOrOptions && typeof textureOrOptions === "object" && !("backend" in textureOrOptions)) {
             tex = textureOrOptions.texture ?? null;
             paramFlag = textureOrOptions.isParam ?? (textureOrOptions.paramName !== undefined);
             pName = textureOrOptions.paramName;
@@ -133,18 +117,6 @@ export class TextureSampleNode extends ShaderNode implements ShaderParamProvider
         this.addOutput({ name: "color", type: "vec4" });
         this.addOutput({ name: "rgb", type: "vec3" });
         this.addOutput({ name: "alpha", type: "float" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        const uvExpr = ctx.inputs["uv"] ?? "in.uv";
-        const texBinding = `t_tex_${this.textureIndex}`;
-        const sampBinding = `s_tex_${this.textureIndex}`;
-
-        return `
-    let ${p}_color: vec4<f32> = textureSample(${texBinding}, ${sampBinding}, ${uvExpr});
-    let ${p}_rgb: vec3<f32> = ${p}_color.rgb;
-    let ${p}_alpha: f32 = ${p}_color.a;`;
     }
 }
 
@@ -201,33 +173,6 @@ export class BlendNode extends ShaderNode {
         this.addInput({ name: "mode", type: "float" });
         this.addInput({ name: "factor", type: "float" });
         this.addOutput({ name: "out", type: "vec4" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        const inA = ctx.inputs["a"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-        const inB = ctx.inputs["b"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-        const inMode = ctx.inputs["mode"] ?? `${this.defaultMode.toFixed(1)}`;
-        const inFactor = ctx.inputs["factor"] ?? `${this.defaultFactor.toFixed(4)}`;
-
-        return `
-    var ${p}_out: vec4<f32>;
-    let ${p}_m = i32(${inMode} + 0.5);
-    if (${p}_m == 0) {
-        ${p}_out = ${inA} * ${inB};
-    } else if (${p}_m == 1) {
-        ${p}_out = clamp(${inA} + ${inB}, vec4<f32>(0.0), vec4<f32>(1.0));
-    } else if (${p}_m == 2) {
-        ${p}_out = clamp(${inA} - ${inB}, vec4<f32>(0.0), vec4<f32>(1.0));
-    } else if (${p}_m == 3) {
-        ${p}_out = mix(${inA}, ${inB}, ${inFactor});
-    } else if (${p}_m == 4) {
-        ${p}_out = ${inA};
-    } else if (${p}_m == 5) {
-        ${p}_out = ${inB};
-    } else {
-        ${p}_out = clamp(${inA} / max(${inB}, vec4<f32>(0.0001, 0.0001, 0.0001, 0.0001)), vec4<f32>(0.0), vec4<f32>(1.0));
-    }`;
     }
 }
 

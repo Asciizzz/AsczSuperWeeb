@@ -1,65 +1,83 @@
-# WeebRender Engine
+# WeebRender
 
-Pure 3D rendering engine built on the Atoolkit suite:
-- **Aecs**: Sparse-set Entity Component System for runtime entity queries.
-- **Acmp**: Composable component and step payloads.
-- **Aflow**: Directed execution graph for pipeline and pass recording.
-- **Awgpu**: Low-level WebGPU abstraction and buffer utilities.
-- **Alm**: Zero-allocation linear algebra matrices and quaternions.
-- **Adataflow**: Typed socket computation graph driving shader graph evaluation and code emission.
+3D rendering engine built on the `Atoolkit` library suite:
+- `Aecs`: Sparse-set Entity Component System for state queries.
+- `Acmp`: Composable execution step payloads.
+- `Aflow`: Directed execution graph for pass scheduling.
+- `Alm`: Linear algebra matrices and quaternions.
+- `Adataflow`: Typed socket computation graph driving shader graph topology.
 
 ---
 
-## Core Architecture
+## Architecture
 
-### Decoupled CPU Primitives
+### Decoupled CPU Assets
 
-Primitives represent pure, backend-agnostic CPU memory buffers with zero hardware dependencies:
+Pure CPU memory representations with zero hardware allocations:
 
-- [`Mesh`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/mesh.ts): Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and index partitions (`Submesh`). Completely free of GPU handles, enabling execution in headless environments or multiple backends.
-- [`Texture`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/texture.ts): CPU image container holding pixel dimensions (`width`, `height`) and raw byte buffers (`Uint8Array`). Holds no GPU textures or device references.
-- [`Skeleton`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/skin.ts): Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
-- [`ShaderGraph`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/graph.ts): Node graph describing math, uniforms, texture sampling, and lighting logic. Compiles to an intermediate blueprint (`ShaderBlueprint`).
+- `Mesh`: Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and submesh partitions. Operates in headless environments and across multiple GPU backends.
+- `Texture`: CPU image buffer holding pixel dimensions (`width`, `height`) and byte buffers (`Uint8Array`).
+- `Skeleton`: Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
+- `ShaderGraph`: Node graph describing math, uniforms, texture sampling, and lighting logic. Compiles to a backend-agnostic `CompiledShaderBlueprint`.
 
-### Hardware GPU Representations (`WeebRender/wgpu/`)
+### Universal GPU Handles (`gpu.ts`)
 
-Backend-specific GPU resource wrappers allocate, update, and manage hardware state:
+Universal handles store common metadata and expose uniform parameter helpers on the CPU, holding hardware-specific state in `backend`:
 
-- [`GMesh`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gmesh.ts): Hardware vertex and index buffers (`GPUBuffer`), index format (`GPUIndexFormat`), index count, vertex stride, attributes, and submeshes. Can be created via `GMesh.fromMesh(device, mesh)` or referenced directly via `GMesh.ref(...)`.
-- [`GTexture`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gtexture.ts): Hardware texture resource wrapping `GPUTexture`, `GPUTextureView`, and `GPUSampler`. Supports CPU upload via `GTexture.fromTexture(device, texture)` or offscreen pass binding via `GTexture.ref(...)` for Render-to-Texture (RTT).
-- [`GShader`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gshader.ts): WebGPU pipeline and bind group layout manager. Manages WGSL shader modules, uniform memory offsets, and cached render pipelines per vertex stride and skinning mode. Re-exported as `Shader`.
-- [`WgpuRenderer`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/renderer.ts): WebGPU rendering engine orchestrating passes through `Aflow`. Dispatches `GMesh` vertex/index buffers directly and binds `GTexture` resources without side-table caches or hidden promotion logic. Re-exported as `WeebRenderer`.
+- `GpuMesh<TBackend = unknown>`: Vertex count, index count, vertex stride, attributes, submesh ranges, and optional CPU mesh reference.
+- `GpuTexture<TBackend = unknown>`: Dimensions, label, GPU ownership flag, and optional CPU texture reference.
+- `GpuShader<TBackend = unknown>`: Compiled blueprint, `ShaderParamLayout`, and parameter query methods (`getParamNames`, `hasParam`, `getDefaultParam`, `createDefaultParams`, `createParamsCmp`).
 
-### WebGL2 Backend Roadmap (`WeebRender/wgl2/`)
+Ergonomic aliases `GMesh`, `GTexture`, `GShader`, and `Shader` map directly to these universal handles.
 
-- [`WeebRender/wgl2`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgl2/index.ts): Architectural stub for the future WebGL2 backend. CPU primitives (`Mesh`, `Texture`) will be uploaded to corresponding `GLMesh` and `GLTexture` objects, targeting a unified interface across web graphics APIs.
+### Hardware Backends
 
-### Runtime Components
+#### WebGPU (`wgpu/`)
 
-Attached to ECS entities to drive positioning, rendering, and animation:
+Active hardware backend:
+- `WgpuMesh`: Manages `GPUBuffer` allocations, vertex and index data uploads, 4-byte padding, and dynamic buffer reallocation.
+- `WgpuTexture`: Manages `GPUTexture`, `GPUTextureView`, and `GPUSampler` objects, supporting CPU texture uploads and offscreen Render-to-Texture (RTT) targets.
+- `WgpuShader`: Manages `GPURenderPipeline` caching for static (stride 32) and skinned (stride 64) vertex configurations, WGSL shader modules, and bind group layouts.
+- `compileWgsl`: Dedicated WebGPU shader compiler translating `ShaderGraph` AST topology into WGSL source code.
+- `WgpuRenderer`: Orchestrates render passes via `Aflow`, managing camera, object, material, and skinning bind groups. Aliased as `WeebRenderer`.
 
-- `TransformCmp`: Holds TRS vectors (`position`, `rotation`, `scale`), dirty flag, and precomputed `worldMatrix`.
-- `MeshCmp`: Holds `rMesh` reference (strictly typed to `GMesh`) and a `visible` toggle.
-- `MaterialCmp`: Holds shader references (`GShader`) and runtime uniform/texture overrides (`MaterialParamRecord`) per material slot. Texture parameters must be provided as `GTexture`.
-- `SkinCmp`: Holds `rSkeleton` reference, dynamic `jointPalette` GPU buffer, and per-entity joint poses.
-- `CameraCmp`: Holds FOV, aspect ratio, clipping planes, eye position vector, view matrix, and projection matrix.
-- `ShaderParamsCmp`: Holds runtime uniform and texture overrides.
+See [wgpu/ReadMe.md](./wgpu/ReadMe.md) for WebGPU backend details.
+
+#### WebGL2 (`wgl2/`)
+
+Architectural roadmap for WebGL2:
+- Translates `ShaderGraph` AST to GLSL ES 3.0.
+- Specializes universal handles into `GLMesh` (`WebGLVertexArrayObject`, VBO, IBO) and `GLTexture` (`WebGLTexture`).
+
+See [wgl2/ReadMe.md](./wgl2/ReadMe.md) for WebGL2 roadmap details.
+
+---
+
+## Single-Entity Render Contract
+
+A renderable 3D entity provides all required render data through co-located components. The renderer queries matching entities in O(1) without hierarchy crawling or parent-child tree traversals during the render loop:
+
+- `TransformCmp`: World and local position, rotation, scale, and cached `worldMatrix`.
+- `MeshCmp`: GPU geometry handle (`rMesh: GpuMesh`) and visibility flag.
+- `MaterialCmp`: Shader pipeline references (`shaders: GpuShader[]`) and parameter override records (`params: MaterialParamRecord[]`) per slot.
+- `SkinCmp`: Flattened `jointPalette` matrix array (`Float32Array`) for linear blend skinning. Entities without `SkinCmp` render as static geometry.
+- `ShaderParamsCmp`: Entity parameter values and texture overrides.
 
 ### Referenced Asset Prefix (`r`)
 
-Every referenced static GPU asset held within a runtime ECS component uses the `r` prefix:
+Static GPU handles stored within runtime ECS components use the `r` prefix:
 
-| Container | Property | Description |
-| :--- | :--- | :--- |
-| `MeshCmp` | `rMesh` | Direct reference to the GPU hardware `GMesh` asset |
-| `SkinCmp` | `rSkeleton` | Direct reference to the static `Skeleton` asset |
+| Component | Property | Type | Description |
+| :--- | :--- | :--- | :--- |
+| `MeshCmp` | `rMesh` | `GpuMesh` | Reference to the GPU mesh handle |
+| `SkinCmp` | `rSkeleton` | `Skeleton` | Reference to the CPU skeleton hierarchy |
 
 ### Explicit GPU Boundary Invariant
 
-The renderer intentionally avoids auto-converting or caching raw CPU objects internally:
-- `MeshCmp` accepts `GMesh`. Call `renderer.createMesh(cpuMesh)` or `GMesh.fromMesh(device, cpuMesh)`.
-- Texture uniform parameters accept `GTexture`. Call `renderer.createTexture(cpuTexture)` or `GTexture.fromTexture(device, cpuTexture)`.
-- Offscreen Render-to-Texture (RTT) targets wrap raw `GPUTexture` handles via `GTexture.ref(rawTexture, view, sampler)` without requiring dummy CPU textures.
+The renderer operates on GPU handles rather than auto-converting CPU buffers on the fly:
+- `MeshCmp` requires a `GpuMesh`. Use `renderer.createMesh(cpuMesh)` or `WgpuMesh.fromMesh(device, cpuMesh)`.
+- Texture parameters require a `GpuTexture`. Use `renderer.createTexture(cpuTexture)` or `WgpuTexture.fromTexture(device, cpuTexture)`.
+- Offscreen Render-to-Texture (RTT) targets wrap raw textures via `WgpuTexture.ref(rawTexture, options)` or `renderer.createRenderTarget(width, height)`.
 
 ---
 
@@ -74,28 +92,25 @@ import {
     MeshCmp,
     MaterialCmp,
     Mesh,
-    Texture,
     ShaderGraph,
     ColorNode,
-    TextureSampleNode,
-    MathNode,
-    Shader,
+    WgpuShader,
 } from "./index.js";
 
-// 1. Build a Shader Graph
-const graph = new ShaderGraph("CustomAlpine");
+// 1. Author Shader Graph
+const graph = new ShaderGraph("AlpineMaterial");
 const tintNode = new ColorNode("tintColor", [0.8, 0.8, 0.9, 1.0], true, "tintColor");
 graph.addNode(tintNode);
 graph.connect(tintNode, "color", graph.outputNode, "baseColor");
 
-const bp = graph.compile();
-const rockShader = new Shader(bp!);
+// 2. Instantiate Shader from Graph
+const rockShader = new WgpuShader(graph);
 
-// 2. Create CPU Geometry Mesh
+// 3. Define CPU Geometry
 const cpuMesh = new Mesh(
     "MountainPeak",
     new Float32Array([
-        // Pos(3), Normal(3), UV(2)
+        // Position(3), Normal(3), UV(2)
         -1, -1, 0,   0, 0, 1,   0, 1,
          1, -1, 0,   0, 0, 1,   1, 1,
          0,  1, 0,   0, 0, 1,   0.5, 0,
@@ -104,7 +119,7 @@ const cpuMesh = new Mesh(
     [{ name: "Peak", indexStart: 0, indexCount: 3 }]
 );
 
-// 3. Initialize Camera and Renderer
+// 4. Initialize Renderer and Camera
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const camera = new CameraCmp(60, canvas.width / canvas.height, 0.1, 1000);
 camera.lookAt([0, 2, 5], [0, 0, 0]);
@@ -112,18 +127,17 @@ camera.lookAt([0, 2, 5], [0, 0, 0]);
 const renderer = new WeebRenderer(canvas);
 await renderer.init();
 
-// 4. Upload CPU Primitives to GPU Representations
+// 5. Upload CPU Mesh to GPU Handle
 const gMesh = renderer.createMesh(cpuMesh);
 
-// 5. Setup ECS World and Entities
+// 6. Spawn Renderable Entity in ECS
 const ecs = new Aecs();
-
-const entity = ecs.spawn(
+ecs.spawn(
     new TransformCmp([0, 0, 0]),
     new MeshCmp(gMesh),
     new MaterialCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
 );
 
-// 6. Render Frame
+// 7. Render Frame
 renderer.render(ecs, camera);
 ```

@@ -1,4 +1,4 @@
-import { ShaderNode, type NodeCompileContext } from "./base.js";
+import { ShaderNode } from "./base.js";
 import { type ShaderParamProvider } from "./params.js";
 
 export interface FloatNodeOptions {
@@ -44,17 +44,6 @@ export class FloatNode extends ShaderNode implements ShaderParamProvider {
         this.paramName = pName ?? (paramFlag ? id : undefined);
 
         this.addOutput({ name: "value", type: "float" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        if (this.isParam && this.paramName) {
-            return `
-    let ${p}_value: f32 = ${ctx.uniformVarName}.${this.paramName};`;
-        }
-
-        return `
-    let ${p}_value: f32 = ${this.defaultValue.toFixed(4)};`;
     }
 }
 
@@ -104,19 +93,6 @@ export class MathNode extends ShaderNode {
         this.addInput({ name: "b", type: "vec4" });
         this.addOutput({ name: "out", type: "vec4" });
     }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        const inA = ctx.inputs["a"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-        const inB = ctx.inputs["b"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-
-        let op = "*";
-        if (this.operation === "add") op = "+";
-        else if (this.operation === "subtract") op = "-";
-        else if (this.operation === "divide") op = "/";
-
-        return `let ${p}_out = ${inA} ${op} ${inB};`;
-    }
 }
 
 export interface MixNodeOptions {
@@ -152,15 +128,5 @@ export class MixNode extends ShaderNode {
         this.addInput({ name: "b", type: "vec4" });
         this.addInput({ name: "factor", type: "float" });
         this.addOutput({ name: "out", type: "vec4" });
-    }
-
-    generateWGSL(ctx: NodeCompileContext): string {
-        const p = ctx.varPrefix;
-        const inA = ctx.inputs["a"] ?? "vec4<f32>(0.0, 0.0, 0.0, 1.0)";
-        const inB = ctx.inputs["b"] ?? "vec4<f32>(1.0, 1.0, 1.0, 1.0)";
-        const inFactor = ctx.inputs["factor"] ?? `${this.defaultFactor.toFixed(4)}`;
-
-        return `
-    let ${p}_out = mix(${inA}, ${inB}, ${inFactor});`;
     }
 }

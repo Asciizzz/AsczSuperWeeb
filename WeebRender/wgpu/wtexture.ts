@@ -1,14 +1,19 @@
+import { GpuTexture } from "../gpu.js";
 import type { Texture } from "../texture.js";
 
-let gTextureIdCounter = 0;
+export interface WgpuTexturePayload {
+    gpuTexture: GPUTexture;
+    gpuView: GPUTextureView;
+    gpuSampler: GPUSampler;
+}
 
-export interface GTextureOptions {
+export interface WgpuTextureOptions {
     name?: string;
     sampler?: GPUSampler;
     label?: string;
 }
 
-export interface GTextureRefOptions {
+export interface WgpuTextureRefOptions {
     name?: string;
     view?: GPUTextureView;
     sampler?: GPUSampler;
@@ -18,22 +23,23 @@ export interface GTextureRefOptions {
 
 /**
  * WebGPU GPU-resident Texture wrapper.
- * Holds GPUTexture, GPUTextureView, and GPUSampler directly.
- * Can self-allocate resources (gpuOwned = true) or reference external resources (gpuOwned = false).
+ * Extends GpuTexture<WgpuTexturePayload> to provide typed WebGPU accessors.
  */
-export class GTexture {
-    readonly id: number;
-    name: string;
-    gpuTexture: GPUTexture;
-    gpuView: GPUTextureView;
-    gpuSampler: GPUSampler;
-    width: number;
-    height: number;
-    gpuOwned: boolean;
-    cpuTexture?: Texture;
+export class WgpuTexture extends GpuTexture<WgpuTexturePayload> {
+    get gpuTexture(): GPUTexture {
+        return this.backend.gpuTexture;
+    }
+
+    get gpuView(): GPUTextureView {
+        return this.backend.gpuView;
+    }
+
+    get gpuSampler(): GPUSampler {
+        return this.backend.gpuSampler;
+    }
 
     constructor(
-        name = "GTexture",
+        name = "WgpuTexture",
         gpuTexture: GPUTexture,
         gpuView: GPUTextureView,
         gpuSampler: GPUSampler,
@@ -41,26 +47,19 @@ export class GTexture {
         height = 1,
         gpuOwned = false
     ) {
-        this.id = ++gTextureIdCounter;
-        this.name = name;
-        this.gpuTexture = gpuTexture;
-        this.gpuView = gpuView;
-        this.gpuSampler = gpuSampler;
-        this.width = width;
-        this.height = height;
-        this.gpuOwned = gpuOwned;
+        super(name, width, height, { gpuTexture, gpuView, gpuSampler }, gpuOwned);
     }
 
     /**
      * Allocates a WebGPU texture, view, and sampler from a CPU Texture asset and copies pixel data.
-     * Marks the GPU resources as owned by this GTexture instance.
+     * Marks the GPU resources as owned by this WgpuTexture instance.
      */
-    static fromTexture(device: GPUDevice, texture: Texture, options?: GTextureOptions): GTexture {
+    static fromTexture(device: GPUDevice, texture: Texture, options?: WgpuTextureOptions): WgpuTexture {
         const width = Math.max(1, texture.width);
         const height = Math.max(1, texture.height);
 
         const gpuTexture = device.createTexture({
-            label: options?.label ?? `GTexture_${texture.name}_${texture.id}`,
+            label: options?.label ?? `WgpuTexture_${texture.name}_${texture.id}`,
             size: [width, height, 1],
             format: "rgba8unorm",
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
@@ -77,12 +76,12 @@ export class GTexture {
 
         const gpuView = gpuTexture.createView();
         const gpuSampler = options?.sampler ?? device.createSampler({
-            label: `GSampler_${texture.name}_${texture.id}`,
+            label: `WSampler_${texture.name}_${texture.id}`,
             magFilter: "linear",
             minFilter: "linear",
         });
 
-        const gTex = new GTexture(
+        const wTex = new WgpuTexture(
             options?.name ?? texture.name,
             gpuTexture,
             gpuView,
@@ -91,8 +90,8 @@ export class GTexture {
             height,
             true
         );
-        gTex.cpuTexture = texture;
-        return gTex;
+        wTex.cpuTexture = texture;
+        return wTex;
     }
 
     /**
@@ -101,15 +100,14 @@ export class GTexture {
      */
     static ref(
         gpuTexture: GPUTexture,
-        options?: GTextureRefOptions
-    ): GTexture {
+        options?: WgpuTextureRefOptions
+    ): WgpuTexture {
         const view = options?.view ?? gpuTexture.createView();
-        // Return a referenced GTexture; if sampler is not provided, caller or renderer can supply default
-        return new GTexture(
-            options?.name ?? "GTextureRef",
+        return new WgpuTexture(
+            options?.name ?? "WgpuTextureRef",
             gpuTexture,
             view,
-            options?.sampler!,
+            options?.sampler as GPUSampler,
             options?.width ?? gpuTexture.width,
             options?.height ?? gpuTexture.height,
             false
@@ -117,31 +115,33 @@ export class GTexture {
     }
 
     /**
-     * Re-uploads CPU pixel data into the existing GPU texture.
+     * Updates an existing WgpuTexture with new pixel data from a CPU Texture asset.
      */
     updateFromTexture(device: GPUDevice, texture: Texture): void {
-        if (!texture.data) return;
-        device.queue.writeTexture(
-            { texture: this.gpuTexture },
-            texture.data.buffer as ArrayBuffer,
-            { bytesPerRow: this.width * 4 },
-            { width: this.width, height: this.height }
-        );
-    }
-
-    /**
-     * Clears GPU resources. Only destroys the texture if it was created and owned by this instance.
-     */
-    destroy(): void {
-        if (this.gpuOwned) {
-            this.gpuTexture?.destroy();
+        const w = Math.min(this.width, texture.width);
+        const h = Math.min(this.height, texture.height);
+        if (texture.data && w > 0 && h > 0) {
+            device.queue.writeTexture(
+                { texture: this.gpuTexture },
+                texture.data.buffer as ArrayBuffer,
+                { bytesPerRow: texture.width * 4 },
+                { width: w, height: h }
+            );
+            this.cpuTexture = texture;
         }
     }
 
     /**
-     * Alias for destroy on context teardown.
+     * Releases owned WebGPU texture resources.
      */
-    invalidateGpu(): void {
-        this.destroy();
+    destroy(): void {
+        if (this.gpuOwned) {
+            this.gpuTexture.destroy();
+        }
     }
 }
+
+// Ergonomic aliases
+export { WgpuTexture as GTexture };
+export type { WgpuTextureOptions as GTextureOptions, WgpuTextureRefOptions as GTextureRefOptions };
+
