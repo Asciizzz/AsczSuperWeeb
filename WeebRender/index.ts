@@ -79,7 +79,6 @@ export {
 
 // Shader Graph & Node System
 export {
-    Shader,
     ShaderGraph,
     ShaderNode,
     ColorNode,
@@ -101,12 +100,8 @@ export {
     createColorShader,
     createTextureShader,
     createDefaultShader,
-    createSkinnedColorShader,
-    createSkinnedTextureShader,
     createShadedColorShader,
     createShadedTextureShader,
-    createSkinnedShadedColorShader,
-    createSkinnedShadedTextureShader,
     type SocketType,
     type InputSocket,
     type OutputSocket,

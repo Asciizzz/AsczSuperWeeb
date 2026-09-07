@@ -394,9 +394,9 @@ Handled by [`ShaderGraph.compile()`](file:///C:/Users/Admin/Downloads/AsczSuperW
 
 ## Shader Runtime & Parameter Instances
 
-File: [`WeebRender/shader/shader.ts`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/shader.ts)
+File: [`WeebRender/wgpu/gshader.ts`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gshader.ts)
 
-The [`Shader`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/shader.ts) instance wraps a compiled blueprint and manages WebGPU pipelines, parameter instantiation, and cache invalidation.
+The [`GShader`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gshader.ts) instance wraps a compiled blueprint and manages WebGPU pipelines, parameter instantiation, and cache invalidation.
 
 ### Universal Stride Adaptation
 

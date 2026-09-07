@@ -1,6 +1,6 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import type { Texture } from "../texture.js";
-import type { Shader } from "./shader.js";
+import type { GShader } from "../wgpu/gshader.js";
 import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
 
 /**
@@ -8,12 +8,12 @@ import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
  * If omitted on an entity, submeshes render using their shader's default parameters.
  */
 export class ShaderParamsCmp extends Acmp {
-    rShader?: Shader;
+    rShader?: GShader;
     values: MaterialParamRecord;
 
     constructor(
         values: MaterialParamRecord = {},
-        rShader?: Shader
+        rShader?: GShader
     ) {
         super();
         this.values = values;

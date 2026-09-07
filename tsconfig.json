@@ -10,6 +10,12 @@
     "skipLibCheck": true,
     "isolatedModules": true
   },
-  "include": ["Atoolkit/**/*.ts", "**/*.ts"],
+  "include": [
+    "Atoolkit/**/*.ts",
+    "WeebRender/**/*.ts",
+    "prototypes/Akettle/**/*.ts",
+    "prototypes/SuperSimple/**/*.ts",
+    "hub/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts"]
 }

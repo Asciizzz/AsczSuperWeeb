@@ -3,8 +3,8 @@ import { GMesh } from "../wgpu/gmesh.js";
 import { Skeleton, type Joint, SkinCmp } from "../skeleton.js";
 import { TransformCmp } from "../transform.js";
 import { MaterialCmp } from "../material.js";
-import { Shader } from "../shader/shader.js";
-import { createSkinnedColorShader, createColorShader, createSkinnedTextureShader, createTextureShader } from "../shader/presets.js";
+import { GShader } from "../wgpu/gshader.js";
+import { createColorShader, createTextureShader } from "../shader/presets.js";
 import { Texture } from "../texture.js";
 import { STANDARD_ATTRIBUTES, SKINNED_ATTRIBUTES } from "../extensions/presets.js";
 import { Mat4, Vec3, Quat, type V3, type Q4, type M16 } from "../../Atoolkit/alm/index.js";
@@ -563,21 +563,21 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
             const mesh = new Mesh(modelName, f32, indicesTyped, submeshes, stride, attributes);
 
             // Build material component
-            const submeshShaders: (Shader | null)[] = [];
+            const submeshShaders: (GShader | null)[] = [];
             const submeshParams: (Record<string, any> | null)[] = [];
 
             for (let i = 0; i < submeshes.length; i++) {
                 const matIdx = submeshMatSlots[i];
                 const mat = materials[matIdx];
                 if (mat?.baseTexture) {
-                    submeshShaders.push(createSkinnedTextureShader(mat.baseTexture, mat.baseColorFactor, `${modelName}_TexShader`));
+                    submeshShaders.push(createTextureShader(mat.baseTexture, mat.baseColorFactor, `${modelName}_TexShader`));
                     submeshParams.push({
                         mainTexture: mat.baseTexture,
                         tintColor: mat.baseColorFactor,
                     });
                 } else {
                     const color = mat?.baseColorFactor ?? [0.9, 0.9, 0.95, 1.0];
-                    submeshShaders.push(createSkinnedColorShader(color, `${modelName}_Shader`));
+                    submeshShaders.push(createColorShader(color, `${modelName}_Shader`));
                     submeshParams.push({
                         baseColor: color,
                     });
@@ -685,7 +685,7 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
         const mesh = new Mesh(modelName, f32, indicesTyped, submeshes, stride, attributes);
 
         // Build material component
-        const submeshShaders: (Shader | null)[] = [];
+        const submeshShaders: (GShader | null)[] = [];
         const submeshParams: (Record<string, any> | null)[] = [];
 
         for (let i = 0; i < submeshes.length; i++) {

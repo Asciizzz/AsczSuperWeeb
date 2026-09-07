@@ -1,6 +1,6 @@
 import { ShaderGraph } from "./graph.js";
 import { ColorNode, TextureSampleNode, BlendNode, FloatNode, BasicShadingNode } from "./nodes.js";
-import { Shader } from "./shader.js";
+import { GShader } from "../wgpu/gshader.js";
 import type { Texture } from "../texture.js";
 
 /**
@@ -9,7 +9,7 @@ import type { Texture } from "../texture.js";
 export function createColorShader(
     color: number[] = [1, 1, 1, 1],
     name = "ColorShader"
-): Shader {
+): GShader {
     const graph = new ShaderGraph(name);
     const colorNode = new ColorNode("colorNode", color, true, "baseColor");
     colorNode.metadata = { x: 80, y: 120 };
@@ -18,7 +18,7 @@ export function createColorShader(
     graph.addNode(colorNode);
     const bp = graph.compile();
     if (!bp) throw new Error(`[createColorShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
-    return new Shader(bp, graph);
+    return new GShader(bp, graph);
 }
 
 /**
@@ -33,7 +33,7 @@ export function createTextureShader(
     texture: Texture | null = null,
     tint: number[] = [1, 1, 1, 1],
     name = "TextureShader"
-): Shader {
+): GShader {
     const graph = new ShaderGraph(name);
 
     const texNode = new TextureSampleNode("texNode", texture, true, "mainTexture");
@@ -61,37 +61,14 @@ export function createTextureShader(
     graph.connect(factorNode, "value", blendNode, "factor");
     const bp = graph.compile();
     if (!bp) throw new Error(`[createTextureShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
-    return new Shader(bp, graph);
+    return new GShader(bp, graph);
 }
 
 /**
  * Default fallback white shader.
  */
-export function createDefaultShader(): Shader {
+export function createDefaultShader(): GShader {
     return createColorShader([1, 1, 1, 1], "DefaultShader");
-}
-
-/**
- * Creates a skinned shader that outputs a solid color with parameter "baseColor".
- * Retained for backwards compatibility; all shaders are now universal.
- */
-export function createSkinnedColorShader(
-    color: number[] = [1, 1, 1, 1],
-    name = "SkinnedColorShader"
-): Shader {
-    return createColorShader(color, name);
-}
-
-/**
- * Creates a skinned shader that blends a texture with tint parameters.
- * Retained for backwards compatibility; all shaders are now universal.
- */
-export function createSkinnedTextureShader(
-    texture: Texture | null = null,
-    tint: number[] = [1, 1, 1, 1],
-    name = "SkinnedTextureShader"
-): Shader {
-    return createTextureShader(texture, tint, name);
 }
 
 /**
@@ -103,7 +80,7 @@ export function createShadedColorShader(
     ambient = 0.28,
     diffuse = 0.72,
     name = "ShadedColorShader"
-): Shader {
+): GShader {
     const graph = new ShaderGraph(name);
     const colorNode = new ColorNode("colorNode", color, true, "baseColor");
     const shadingNode = new BasicShadingNode("shadingNode", ambient, diffuse);
@@ -119,7 +96,7 @@ export function createShadedColorShader(
     graph.connect(colorNode, "color", shadingNode, "color");
     const bp = graph.compile();
     if (!bp) throw new Error(`[createShadedColorShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
-    return new Shader(bp, graph);
+    return new GShader(bp, graph);
 }
 
 /**
@@ -132,7 +109,7 @@ export function createShadedTextureShader(
     ambient = 0.28,
     diffuse = 0.72,
     name = "ShadedTextureShader"
-): Shader {
+): GShader {
     const graph = new ShaderGraph(name);
 
     const texNode = new TextureSampleNode("texNode", texture, true, "mainTexture");
@@ -166,32 +143,5 @@ export function createShadedTextureShader(
     graph.connect(blendNode, "out", shadingNode, "color");
     const bp = graph.compile();
     if (!bp) throw new Error(`[createShadedTextureShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
-    return new Shader(bp, graph);
-}
-
-/**
- * Creates a skinned shaded solid-color shader.
- * Retained for backwards compatibility; all shaders are now universal.
- */
-export function createSkinnedShadedColorShader(
-    color: number[] = [1, 1, 1, 1],
-    ambient = 0.28,
-    diffuse = 0.72,
-    name = "SkinnedShadedColorShader"
-): Shader {
-    return createShadedColorShader(color, ambient, diffuse, name);
-}
-
-/**
- * Creates a skinned shaded texture shader.
- * Retained for backwards compatibility; all shaders are now universal.
- */
-export function createSkinnedShadedTextureShader(
-    texture: Texture | null = null,
-    tint: number[] = [1, 1, 1, 1],
-    ambient = 0.28,
-    diffuse = 0.72,
-    name = "SkinnedShadedTextureShader"
-): Shader {
-    return createShadedTextureShader(texture, tint, ambient, diffuse, name);
+    return new GShader(bp, graph);
 }
