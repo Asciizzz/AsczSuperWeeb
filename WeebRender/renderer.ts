@@ -414,6 +414,23 @@ export class WeebRenderer {
         return { buffer: this.skinBuffers[index], bindGroup: this.skinBindGroups[index] };
     }
 
+    private defaultIdentityPalette: Float32Array | null = null;
+
+    private getDefaultIdentityPalette(jointCount: number): Float32Array {
+        const count = Math.max(jointCount, 256);
+        if (!this.defaultIdentityPalette || this.defaultIdentityPalette.length < count * 16) {
+            const arr = new Float32Array(count * 16);
+            for (let i = 0; i < count; i++) {
+                arr[i * 16 + 0] = 1;
+                arr[i * 16 + 5] = 1;
+                arr[i * 16 + 10] = 1;
+                arr[i * 16 + 15] = 1;
+            }
+            this.defaultIdentityPalette = arr;
+        }
+        return this.defaultIdentityPalette;
+    }
+
     /**
      * Ensures GPU texture view and sampler for a Texture asset.
      */
@@ -618,10 +635,15 @@ export class WeebRenderer {
                     ?? this.defaultShader;
                 if (!shader) continue;
 
+                // Determine whether skinning should be active for this mesh
+                // Active skinning requires BOTH stride 64 AND an attached SkinCmp
+                const hasSkin = mesh.stride === 64 && !!skinCmp;
+
                 const pipeline = shader.getOrCreatePipeline(
                     device,
                     this.backend!.format!,
                     mesh.stride,
+                    hasSkin,
                     this.cameraBindGroupLayout!,
                     this.objectBindGroupLayout!,
                     this.skinBindGroupLayout!
@@ -656,8 +678,8 @@ export class WeebRenderer {
                 );
                 pass.setBindGroup(2, matBindGroup);
 
-                // Skin Bind Group (Group 3) if mesh is skinned (stride 64)
-                if (mesh.stride === 64) {
+                // Skin Bind Group (Group 3) only when active skinning is enabled
+                if (hasSkin) {
                     if (skinCmp && skinCmp.jointPalette.byteLength > 0) {
                         const { buffer: sBuffer, bindGroup: sBindGroup } = this.getSkinBuffer(
                             drawSlot,
@@ -672,13 +694,17 @@ export class WeebRenderer {
                         );
                         pass.setBindGroup(3, sBindGroup);
                     } else {
-                        const { buffer: sBuffer, bindGroup: sBindGroup } = this.getSkinBuffer(drawSlot, 64);
+                        // Fallback identity matrices if palette not yet computed
+                        const jointCount = Math.max(skinCmp?.rSkeleton?.joints?.length ?? 1, 256);
+                        const bufferSize = jointCount * 64;
+                        const { buffer: sBuffer, bindGroup: sBindGroup } = this.getSkinBuffer(drawSlot, bufferSize);
+                        const palette = this.getDefaultIdentityPalette(jointCount);
                         queue.writeBuffer(
                             sBuffer,
                             0,
-                            IDENTITY_MATRIX.buffer as ArrayBuffer,
-                            IDENTITY_MATRIX.byteOffset,
-                            64
+                            palette.buffer as ArrayBuffer,
+                            palette.byteOffset,
+                            palette.byteLength
                         );
                         pass.setBindGroup(3, sBindGroup);
                     }

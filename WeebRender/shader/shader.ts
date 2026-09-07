@@ -20,9 +20,9 @@ export class Shader {
     textureBindGroupLayout: GPUBindGroupLayout | null = null;
     skinBindGroupLayout: GPUBindGroupLayout | null = null;
 
-    private pipelinesByStride = new Map<number, GPURenderPipeline>();
-    private shaderModulesByStride = new Map<number, GPUShaderModule>();
-    private pipelineLayoutsByStride = new Map<number, GPUPipelineLayout>();
+    private pipelinesByKey = new Map<string, GPURenderPipeline>();
+    private shaderModulesByKey = new Map<string, GPUShaderModule>();
+    private pipelineLayoutsByKey = new Map<string, GPUPipelineLayout>();
     private shaderModule: GPUShaderModule | null = null;
     private pipelineLayout: GPUPipelineLayout | null = null;
 
@@ -46,9 +46,9 @@ export class Shader {
      */
     invalidateGpu(): void {
         this.pipeline = null;
-        this.pipelinesByStride.clear();
-        this.shaderModulesByStride.clear();
-        this.pipelineLayoutsByStride.clear();
+        this.pipelinesByKey.clear();
+        this.shaderModulesByKey.clear();
+        this.pipelineLayoutsByKey.clear();
         this.materialBindGroupLayout = null;
         this.textureBindGroupLayout = null;
         this.skinBindGroupLayout = null;
@@ -57,32 +57,48 @@ export class Shader {
     }
 
     /**
-     * Gets or creates a render pipeline adapted to the specified vertex stride (e.g. 32 or 64).
+     * Gets or creates a render pipeline adapted to the specified vertex stride and skinning state.
      */
     getOrCreatePipeline(
         device: GPUDevice,
         format: GPUTextureFormat,
         stride: number = 32,
-        cameraBindGroupLayout: GPUBindGroupLayout,
-        objectBindGroupLayout: GPUBindGroupLayout,
-        skinBindGroupLayout?: GPUBindGroupLayout
+        isSkinnedOrCameraLayout?: boolean | GPUBindGroupLayout,
+        cameraOrObjectLayout?: GPUBindGroupLayout,
+        objectOrSkinLayout?: GPUBindGroupLayout,
+        maybeSkinLayout?: GPUBindGroupLayout
     ): GPURenderPipeline {
-        const isSkinned = stride === 64;
-        const effectiveStride = isSkinned ? 64 : 32;
-        const cached = this.pipelinesByStride.get(effectiveStride);
+        let isSkinned = stride === 64;
+        let cameraBindGroupLayout: GPUBindGroupLayout;
+        let objectBindGroupLayout: GPUBindGroupLayout;
+        let skinBindGroupLayout: GPUBindGroupLayout | undefined;
+
+        if (typeof isSkinnedOrCameraLayout === "boolean") {
+            isSkinned = isSkinnedOrCameraLayout;
+            cameraBindGroupLayout = cameraOrObjectLayout!;
+            objectBindGroupLayout = objectOrSkinLayout!;
+            skinBindGroupLayout = maybeSkinLayout;
+        } else {
+            cameraBindGroupLayout = isSkinnedOrCameraLayout!;
+            objectBindGroupLayout = cameraOrObjectLayout!;
+            skinBindGroupLayout = objectOrSkinLayout;
+        }
+
+        const pipelineKey = `${stride}_${isSkinned ? "skinned" : "static"}`;
+        const cached = this.pipelinesByKey.get(pipelineKey);
         if (cached) return cached;
 
-        // 1. Compile WGSL Shader Module per stride if not already compiled
-        let shaderModule = this.shaderModulesByStride.get(effectiveStride);
+        // 1. Compile WGSL Shader Module per pipeline key if not already compiled
+        let shaderModule = this.shaderModulesByKey.get(pipelineKey);
         if (!shaderModule) {
             const wgslCode = this.blueprint.getWgsl
                 ? this.blueprint.getWgsl(isSkinned)
                 : (isSkinned && this.blueprint.wgslSkinned ? this.blueprint.wgslSkinned : this.blueprint.wgsl);
             shaderModule = device.createShaderModule({
-                label: `ShaderModule_${this.name}_${this.id}_stride${effectiveStride}`,
+                label: `ShaderModule_${this.name}_${this.id}_${pipelineKey}`,
                 code: wgslCode,
             });
-            this.shaderModulesByStride.set(effectiveStride, shaderModule);
+            this.shaderModulesByKey.set(pipelineKey, shaderModule);
         }
         this.shaderModule = shaderModule;
 
@@ -141,18 +157,18 @@ export class Shader {
             bindGroupLayouts.push(this.skinBindGroupLayout);
         }
 
-        // 5. Create Pipeline Layout per stride
-        let pipelineLayout = this.pipelineLayoutsByStride.get(effectiveStride);
+        // 5. Create Pipeline Layout per pipeline key
+        let pipelineLayout = this.pipelineLayoutsByKey.get(pipelineKey);
         if (!pipelineLayout) {
             pipelineLayout = device.createPipelineLayout({
-                label: `PipelineLayout_${this.name}_${this.id}_stride${effectiveStride}`,
+                label: `PipelineLayout_${this.name}_${this.id}_${pipelineKey}`,
                 bindGroupLayouts,
             });
-            this.pipelineLayoutsByStride.set(effectiveStride, pipelineLayout);
+            this.pipelineLayoutsByKey.set(pipelineKey, pipelineLayout);
         }
         this.pipelineLayout = pipelineLayout;
 
-        // 6. Create Render Pipeline adapted to vertex stride
+        // 6. Create Render Pipeline adapted to vertex stride and skinning state
         const vertexBuffers: GPUVertexBufferLayout[] = [
             isSkinned
                 ? {
@@ -166,7 +182,7 @@ export class Shader {
                     ],
                 }
                 : {
-                    arrayStride: effectiveStride,
+                    arrayStride: stride,
                     attributes: [
                         { shaderLocation: 0, offset: 0, format: "float32x3" },
                         { shaderLocation: 1, offset: 12, format: "float32x3" },
@@ -176,7 +192,7 @@ export class Shader {
         ];
 
         const pipeline = device.createRenderPipeline({
-            label: `RenderPipeline_${this.name}_${this.id}_stride${effectiveStride}`,
+            label: `RenderPipeline_${this.name}_${this.id}_${pipelineKey}`,
             layout: pipelineLayout,
             vertex: {
                 module: shaderModule,
@@ -199,7 +215,7 @@ export class Shader {
             },
         });
 
-        this.pipelinesByStride.set(effectiveStride, pipeline);
+        this.pipelinesByKey.set(pipelineKey, pipeline);
         this.pipeline = pipeline;
         return pipeline;
     }

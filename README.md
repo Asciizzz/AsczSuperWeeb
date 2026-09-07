@@ -51,6 +51,12 @@ AsczSuperWeeb/
 
 ---
 
+## Quirks
+
+The "Weeb" is the name is like an inside joke, Web, Weeb, get it?
+
+---
+
 ## Getting Started
 
 ### Prerequisites
