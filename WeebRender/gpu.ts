@@ -1,6 +1,6 @@
 import type { Submesh, VertexAttribute, Mesh } from "./mesh.js";
 import type { Texture } from "./texture.js";
-import type { CompiledShaderBlueprint, ShaderGraph } from "./shader/graph.js";
+import type { CompiledShaderBlueprint } from "./shader/graph.js";
 import type { ShaderParamLayout } from "./shader/types.js";
 import type { MaterialParamRecord } from "./material.js";
 import { ShaderParamsCmp } from "./shader/params.js";
@@ -84,15 +84,13 @@ export class GpuShader<TBackend = unknown> {
     paramLayout: ShaderParamLayout;
     backend: TBackend;
     gpuOwned: boolean;
-    graph?: ShaderGraph;
 
     constructor(
         name = "GpuShader",
         blueprint: CompiledShaderBlueprint,
         paramLayout: ShaderParamLayout,
         backend: TBackend = undefined as any,
-        gpuOwned = true,
-        graph?: ShaderGraph
+        gpuOwned = true
     ) {
         this.id = ++nextGpuShaderId;
         this.name = name;
@@ -100,7 +98,6 @@ export class GpuShader<TBackend = unknown> {
         this.paramLayout = paramLayout;
         this.backend = backend;
         this.gpuOwned = gpuOwned;
-        this.graph = graph;
     }
 
     /**

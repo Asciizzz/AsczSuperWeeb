@@ -12,7 +12,7 @@ import {
     ParamVec4Node,
     ParamFloatNode,
 } from "../shader/nodes.js";
-import type { ShaderParamLayout } from "../shader/types.js";
+import type { ShaderParamLayout, CompiledTextureNode } from "../shader/types.js";
 import type { Adiag } from "../../Atoolkit/adiag/index.js";
 
 export interface WgslCompileOptions {
@@ -171,7 +171,7 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
 
 function assembleWgslSource(
     paramLayout: ShaderParamLayout,
-    textureNodes: TextureSampleNode[],
+    textureNodes: CompiledTextureNode[],
     statements: string[],
     skinned = false
 ): string {

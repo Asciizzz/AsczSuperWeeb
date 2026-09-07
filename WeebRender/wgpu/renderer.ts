@@ -308,7 +308,7 @@ export class WgpuRenderer {
         if (!bp) {
             throw new Error(`[WgpuRenderer] Default shader compilation failed: ${graph.diag.lastErr()?.raw}`);
         }
-        return new GShader(bp, graph);
+        return new GShader(bp);
     }
 
     /**
@@ -556,7 +556,7 @@ export class WgpuRenderer {
 
         for (let i = 0; i < shader.blueprint.textureNodes.length; i++) {
             const texNode = shader.blueprint.textureNodes[i];
-            const paramName = texNode.paramName ?? texNode.id;
+            const paramName = texNode.paramName ?? texNode.nodeId;
             const paramVal = paramValues?.[paramName];
             const gTex = (paramVal instanceof GTexture ? paramVal : undefined)
                 ?? (texNode.defaultTexture instanceof GTexture ? texNode.defaultTexture : undefined)

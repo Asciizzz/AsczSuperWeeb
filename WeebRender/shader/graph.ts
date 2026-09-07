@@ -14,7 +14,9 @@ import type {
     ShaderParamLayout,
     UniformParamDef,
     TextureParamDef,
+    CompiledTextureNode,
 } from "./types.js";
+
 
 export interface CompiledShaderBlueprint {
     name: string;
@@ -22,7 +24,7 @@ export interface CompiledShaderBlueprint {
     codeSkinned?: string;
     getCode?: (skinned: boolean) => string;
     paramLayout: ShaderParamLayout;
-    textureNodes: TextureSampleNode[];
+    textureNodes: CompiledTextureNode[];
     orderedNodes: ShaderNode[];
     skinned: boolean;
     cullMode?: "none" | "front" | "back";
@@ -168,20 +170,30 @@ export class ShaderGraph extends Adataflow {
      */
     buildParamLayout(sortedNodes?: ShaderNode[]): {
         paramLayout: ShaderParamLayout;
-        textureNodes: TextureSampleNode[];
+        textureNodes: CompiledTextureNode[];
     } {
         const nodes = sortedNodes ?? this.getExecutableNodes();
         const uniformsMap = new Map<string, UniformParamDef>();
         const texturesMap = new Map<string, TextureParamDef>();
-        const textureNodes: TextureSampleNode[] = [];
+        const textureNodes: CompiledTextureNode[] = [];
 
         let currentByteOffset = 0;
 
         for (const node of nodes) {
             if (node instanceof TextureSampleNode) {
                 const texIdx = textureNodes.length;
+                // Assign textureIndex onto the live node so wgsl generation
+                // (which runs in the same compile pass) can read it.
                 node.textureIndex = texIdx;
-                textureNodes.push(node);
+                // Snapshot: copy all values, keep no reference to the live node.
+                const snapshot: CompiledTextureNode = {
+                    nodeId:         node.id,
+                    textureIndex:   texIdx,
+                    isParam:        node.isParam,
+                    paramName:      node.isParam ? (node.paramName ?? node.id) : undefined,
+                    defaultTexture: node.defaultTexture,
+                };
+                textureNodes.push(snapshot);
 
                 if (node.isParam) {
                     const paramName = node.paramName ?? node.id;

@@ -37,6 +37,23 @@ export interface TextureParamDef {
     defaultTexture: GpuTexture | null;
 }
 
+/**
+ * Immutable snapshot of a TextureSampleNode captured at compile time.
+ * Contains no reference to the live ShaderGraph or its nodes.
+ */
+export interface CompiledTextureNode {
+    /** Node id from the source graph, used as a stable key. */
+    readonly nodeId: string;
+    /** Texture binding index within the shader (0-based). */
+    readonly textureIndex: number;
+    /** Whether this texture was exposed as a material parameter. */
+    readonly isParam: boolean;
+    /** Param name under which the texture is exposed (only meaningful when isParam=true). */
+    readonly paramName: string | undefined;
+    /** Default texture captured at compile time. Never a live node reference. */
+    readonly defaultTexture: import("../gpu.js").GpuTexture | null;
+}
+
 export interface ShaderParamLayout {
     uniforms: Map<string, UniformParamDef>;
     textures: Map<string, TextureParamDef>;
