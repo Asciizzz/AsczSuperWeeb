@@ -11,7 +11,7 @@ export {
     CameraCmp,
 } from "./camera.js";
 
-// Mesh & Submeshes
+// Mesh & Submeshes (Pure CPU Assets)
 export {
     Mesh,
     MeshCmp,
@@ -20,7 +20,7 @@ export {
     type VertexAttribute,
 } from "./mesh.js";
 
-// Skeleton & Skinning
+// Skeleton & Skinning (Pure CPU Assets)
 export {
     Skeleton,
     SkinCmp,
@@ -28,11 +28,30 @@ export {
     type Joint,
 } from "./skeleton.js";
 
-// Textures
+// Textures (Pure CPU Assets)
 export {
     Texture,
 } from "./texture.js";
 
+// WebGPU Hardware Data Wrappers & Renderer
+export {
+    GMesh,
+    type GMeshOptions,
+    GTexture,
+    type GTextureOptions,
+    type GTextureRefOptions,
+    GShader,
+    WgpuRenderer,
+    WeebRenderer,
+    SceneDrawStep,
+    FrameStart,
+    FrameEnd,
+    type WeebRendererOptions,
+} from "./wgpu/index.js";
+
+// Namespace export for wgpu and wgl2
+export * as wgpu from "./wgpu/index.js";
+export * as wgl2 from "./wgl2/index.js";
 
 // Extensions: Procedural Generators & Presets
 export {
@@ -104,15 +123,6 @@ export {
     type MaterialParamValue,
     type MaterialParamRecord,
 } from "./material.js";
-
-// Renderer & Execution Flow
-export {
-    WeebRenderer,
-    SceneDrawStep,
-    FrameStart,
-    FrameEnd,
-    type WeebRendererOptions,
-} from "./renderer.js";
 
 // GLB Loader
 export {

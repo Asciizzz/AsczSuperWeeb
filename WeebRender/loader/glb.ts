@@ -1,4 +1,5 @@
 import { Mesh, MeshCmp, type Submesh, type VertexAttribute } from "../mesh.js";
+import { GMesh } from "../wgpu/gmesh.js";
 import { Skeleton, type Joint, SkinCmp } from "../skeleton.js";
 import { TransformCmp } from "../transform.js";
 import { MaterialCmp } from "../material.js";
@@ -745,7 +746,8 @@ export async function loadGlbFromFile(file: File): Promise<LoadedModel[]> {
 export function spawnLoadedModel(
     ecs: Aecs,
     model: LoadedModel,
-    transformOrPos?: TransformCmp | ArrayLike<number>
+    transformOrPos?: TransformCmp | ArrayLike<number>,
+    device?: GPUDevice
 ): number {
     let transform: TransformCmp;
     if (transformOrPos instanceof TransformCmp) {
@@ -756,7 +758,15 @@ export function spawnLoadedModel(
         transform = new TransformCmp();
     }
 
-    const meshCmp = new MeshCmp(model.mesh);
+    if (!model.gMesh && device) {
+        model.gMesh = GMesh.fromMesh(device, model.mesh);
+    }
+
+    if (!model.gMesh) {
+        throw new Error(`[spawnLoadedModel] Model "${model.name}" has not been uploaded to GPU. Pass device to spawnLoadedModel or assign model.gMesh.`);
+    }
+
+    const meshCmp = new MeshCmp(model.gMesh);
     const materialCmp = model.materialCmp ?? new MaterialCmp();
 
     if (model.skeleton) {

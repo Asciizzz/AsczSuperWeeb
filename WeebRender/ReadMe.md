@@ -12,76 +12,54 @@ Pure 3D rendering engine built on the Atoolkit suite:
 
 ## Core Architecture
 
-### Static Assets
+### Decoupled CPU Primitives
 
-Static assets define GPU or CPU data buffers:
+Primitives represent pure, backend-agnostic CPU memory buffers with zero hardware dependencies:
 
-- `Mesh`: Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and index partitions (`Submesh`). Supports direct GPU allocation (`gpuCreate`), external GPU buffer attachment (`ref`), dynamic GPU updating (`updateGpu`), and explicit ownership management (`gpuOwned`).
-- `Texture`: Image container holding pixel dimensions and raw byte buffers (`Uint8Array`). Supports self-allocated WebGPU textures (`gpuCreate`) or externally referenced textures (`ref`), enabling seamless Render-to-Texture (RTT), offscreen passes, and canvas blitting without side-table caches.
-- `Skeleton`: Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
-- `Shader`: Compiled WGSL pipelines, uniform buffer blueprints, and bind group layouts.
+- [`Mesh`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/mesh.ts): Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and index partitions (`Submesh`). Completely free of GPU handles, enabling execution in headless environments or multiple backends.
+- [`Texture`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/texture.ts): CPU image container holding pixel dimensions (`width`, `height`) and raw byte buffers (`Uint8Array`). Holds no GPU textures or device references.
+- [`Skeleton`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/skin.ts): Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
+- [`ShaderGraph`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/graph.ts): Node graph describing math, uniforms, texture sampling, and lighting logic. Compiles to an intermediate blueprint (`ShaderBlueprint`).
+
+### Hardware GPU Representations (`WeebRender/wgpu/`)
+
+Backend-specific GPU resource wrappers allocate, update, and manage hardware state:
+
+- [`GMesh`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gmesh.ts): Hardware vertex and index buffers (`GPUBuffer`), index format (`GPUIndexFormat`), index count, vertex stride, attributes, and submeshes. Can be created via `GMesh.fromMesh(device, mesh)` or referenced directly via `GMesh.ref(...)`.
+- [`GTexture`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gtexture.ts): Hardware texture resource wrapping `GPUTexture`, `GPUTextureView`, and `GPUSampler`. Supports CPU upload via `GTexture.fromTexture(device, texture)` or offscreen pass binding via `GTexture.ref(...)` for Render-to-Texture (RTT).
+- [`GShader`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/gshader.ts): WebGPU pipeline and bind group layout manager. Manages WGSL shader modules, uniform memory offsets, and cached render pipelines per vertex stride and skinning mode. Re-exported as `Shader`.
+- [`WgpuRenderer`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgpu/renderer.ts): WebGPU rendering engine orchestrating passes through `Aflow`. Dispatches `GMesh` vertex/index buffers directly and binds `GTexture` resources without side-table caches or hidden promotion logic. Re-exported as `WeebRenderer`.
+
+### WebGL2 Backend Roadmap (`WeebRender/wgl2/`)
+
+- [`WeebRender/wgl2`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/wgl2/index.ts): Architectural stub for the future WebGL2 backend. CPU primitives (`Mesh`, `Texture`) will be uploaded to corresponding `GLMesh` and `GLTexture` objects, targeting a unified interface across web graphics APIs.
 
 ### Runtime Components
 
 Attached to ECS entities to drive positioning, rendering, and animation:
 
 - `TransformCmp`: Holds TRS vectors (`position`, `rotation`, `scale`), dirty flag, and precomputed `worldMatrix`.
-- `MeshCmp`: Holds `rMesh` reference and a `visible` toggle.
-- `MaterialCmp`: Holds shader pipeline references (`shaders`) and runtime uniform overrides (`params`) per slot.
+- `MeshCmp`: Holds `rMesh` reference (strictly typed to `GMesh`) and a `visible` toggle.
+- `MaterialCmp`: Holds shader references (`GShader`) and runtime uniform/texture overrides (`MaterialParamRecord`) per material slot. Texture parameters must be provided as `GTexture`.
 - `SkinCmp`: Holds `rSkeleton` reference, dynamic `jointPalette` GPU buffer, and per-entity joint poses.
 - `CameraCmp`: Holds FOV, aspect ratio, clipping planes, eye position vector, view matrix, and projection matrix.
-- `ShaderParamsCmp`: Holds legacy uniform overrides.
+- `ShaderParamsCmp`: Holds runtime uniform and texture overrides.
 
 ### Referenced Asset Prefix (`r`)
 
-Every referenced static asset held within a runtime ECS component uses the `r` prefix:
+Every referenced static GPU asset held within a runtime ECS component uses the `r` prefix:
 
 | Container | Property | Description |
 | :--- | :--- | :--- |
-| `MeshCmp` | `rMesh` | Direct reference to the static `Mesh` asset |
+| `MeshCmp` | `rMesh` | Direct reference to the GPU hardware `GMesh` asset |
 | `SkinCmp` | `rSkeleton` | Direct reference to the static `Skeleton` asset |
 
-### Shader Graph Architecture
+### Explicit GPU Boundary Invariant
 
-Micro-node graphs built on `Adataflow` that compile directly to WGSL pipelines:
-
-- **Micro-Nodes (1-3 Sockets)**:
-  - `ColorNode`: Outputs `color` (vec4), `rgb` (vec3), `alpha` (float).
-  - `FloatNode`: Outputs scalar `value` (float).
-  - `TextureSampleNode`: Inputs `uv` (vec2), outputs `color` (vec4), `rgb` (vec3), `alpha` (float).
-  - `MathNode`: Inputs `a`, `b`, outputs `out` (`add`, `multiply`, `subtract`, `divide`).
-  - `MixNode`: Inputs `a`, `b`, `factor`, outputs `out`.
-  - `OutputNode`: Surface sink accepting `baseColor` (vec4), `alpha` (float), `emissive` (vec3).
-
-- **Parameter Mode**:
-  Nodes toggle parameter mode (`isParam: true`, `paramName: "tintColor"`), allocating aligned uniform buffer offsets exposed to `MaterialCmp` and `ShaderParamsCmp`.
-
-- **Built-in Defaults**:
-  Graphs define default parameter values. Call `shader.createDefaultParams()` to instantiate parameter records pre-filled with defaults.
-
-For exhaustive documentation on every node, socket, layout calculation, and compile step, see [`WeebRender/shader/ReadMe.md`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/ReadMe.md).
-
-### Flat ECS Architecture
-
-Flat entity layout without scene graph trees or relational parenting:
-
-- Render passes query the ECS directly for entities possessing `MeshCmp`.
-- **Identity Fallback**: Entities lacking `TransformCmp` draw at origin `(0, 0, 0)` via identity matrices.
-- Decoupled entities evaluate matrices in flat loops without recursive hierarchy walks.
-
-### Render Graph Boundaries
-
-Frame execution orchestrated via `Aflow`:
-
-```
-FrameStart -> RenderPass -> SceneDrawStep -> EndPass -> FrameEnd
-```
-
-- `FrameStart` (`BeginFrame`): Allocates command encoder for active frame.
-- `RenderPass`: Configures color attachments and depth stencil views.
-- `SceneDrawStep`: Iterates flat ECS queries, sets pipelines, binds uniform/vertex/index buffers, and issues draw calls.
-- `EndPass`: Closes active render pass encoder.
-- `FrameEnd` (`EndFrame`): Submits command buffers to GPU queue.
+The renderer intentionally avoids auto-converting or caching raw CPU objects internally:
+- `MeshCmp` accepts `GMesh`. Call `renderer.createMesh(cpuMesh)` or `GMesh.fromMesh(device, cpuMesh)`.
+- Texture uniform parameters accept `GTexture`. Call `renderer.createTexture(cpuTexture)` or `GTexture.fromTexture(device, cpuTexture)`.
+- Offscreen Render-to-Texture (RTT) targets wrap raw `GPUTexture` handles via `GTexture.ref(rawTexture, view, sampler)` without requiring dummy CPU textures.
 
 ---
 
@@ -106,23 +84,15 @@ import {
 
 // 1. Build a Shader Graph
 const graph = new ShaderGraph("CustomAlpine");
-const texNode = new TextureSampleNode("rockTex", new Texture("Rock", 64, 64), true, "mainTexture");
 const tintNode = new ColorNode("tintColor", [0.8, 0.8, 0.9, 1.0], true, "tintColor");
-const mulNode = new MathNode("blend", "multiply");
-
-graph.addNode(texNode);
 graph.addNode(tintNode);
-graph.addNode(mulNode);
-
-graph.connect(texNode, "color", mulNode, "a");
-graph.connect(tintNode, "color", mulNode, "b");
-graph.connect(mulNode, "out", graph.outputNode, "baseColor");
+graph.connect(tintNode, "color", graph.outputNode, "baseColor");
 
 const bp = graph.compile();
 const rockShader = new Shader(bp!);
 
-// 2. Create Geometry Mesh
-const mesh = new Mesh(
+// 2. Create CPU Geometry Mesh
+const cpuMesh = new Mesh(
     "MountainPeak",
     new Float32Array([
         // Pos(3), Normal(3), UV(2)
@@ -134,24 +104,7 @@ const mesh = new Mesh(
     [{ name: "Peak", indexStart: 0, indexCount: 3 }]
 );
 
-// 3. Setup ECS World and Entities
-const ecs = new Aecs();
-
-// Entity with custom parameter override via MaterialCmp
-const entity1 = ecs.spawn(
-    new TransformCmp([0, 1, 0]),
-    new MeshCmp(mesh),
-    new MaterialCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
-);
-
-// Entity using shader blueprint defaults
-const entity2 = ecs.spawn(
-    new TransformCmp([3, 0, 0]),
-    new MeshCmp(mesh),
-    new MaterialCmp(rockShader, rockShader.createDefaultParams())
-);
-
-// 4. Initialize Camera and Renderer
+// 3. Initialize Camera and Renderer
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 const camera = new CameraCmp(60, canvas.width / canvas.height, 0.1, 1000);
 camera.lookAt([0, 2, 5], [0, 0, 0]);
@@ -159,6 +112,18 @@ camera.lookAt([0, 2, 5], [0, 0, 0]);
 const renderer = new WeebRenderer(canvas);
 await renderer.init();
 
-// 5. Render Frame
+// 4. Upload CPU Primitives to GPU Representations
+const gMesh = renderer.createMesh(cpuMesh);
+
+// 5. Setup ECS World and Entities
+const ecs = new Aecs();
+
+const entity = ecs.spawn(
+    new TransformCmp([0, 0, 0]),
+    new MeshCmp(gMesh),
+    new MaterialCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
+);
+
+// 6. Render Frame
 renderer.render(ecs, camera);
 ```

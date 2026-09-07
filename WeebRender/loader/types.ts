@@ -2,6 +2,7 @@ import type { Mesh } from "../mesh.js";
 import type { Skeleton } from "../skeleton.js";
 import type { Texture } from "../texture.js";
 import type { MaterialCmp } from "../material.js";
+import type { GMesh } from "../wgpu/gmesh.js";
 
 export interface LoadedMaterial {
     name: string;
@@ -14,6 +15,7 @@ export interface LoadedMaterial {
 export interface LoadedModel {
     name: string;
     mesh: Mesh;
+    gMesh?: GMesh;
     skeleton?: Skeleton;
     materials: LoadedMaterial[];
     materialCmp?: MaterialCmp;
