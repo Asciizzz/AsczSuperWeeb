@@ -14,10 +14,10 @@ Pure 3D rendering engine built on the Atoolkit suite:
 
 ### Static Assets
 
-Static assets define immutable GPU or CPU data buffers:
+Static assets define GPU or CPU data buffers:
 
-- `Mesh`: Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and index partitions (`Submesh`).
-- `Texture`: Image container holding pixel dimensions and raw byte buffers (`Uint8Array`).
+- `Mesh`: Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and index partitions (`Submesh`). Supports direct GPU allocation (`gpuCreate`), external GPU buffer attachment (`ref`), dynamic GPU updating (`updateGpu`), and explicit ownership management (`gpuOwned`).
+- `Texture`: Image container holding pixel dimensions and raw byte buffers (`Uint8Array`). Supports self-allocated WebGPU textures (`gpuCreate`) or externally referenced textures (`ref`), enabling seamless Render-to-Texture (RTT), offscreen passes, and canvas blitting without side-table caches.
 - `Skeleton`: Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
 - `Shader`: Compiled WGSL pipelines, uniform buffer blueprints, and bind group layouts.
 

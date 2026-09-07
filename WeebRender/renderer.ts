@@ -81,10 +81,6 @@ export class WeebRenderer {
     defaultTextureView: GPUTextureView | null = null;
     defaultSampler: GPUSampler | null = null;
 
-    // GPU cache for static Meshes and Textures
-    private meshCache = new Map<number, GpuMesh>();
-    private textureResourceCache = new Map<number, { gpuTex: GPUTexture; view: GPUTextureView; sampler: GPUSampler }>();
-
     // Object uniform buffer pool
     private objectBuffers: GPUBuffer[] = [];
     private objectBindGroups: GPUBindGroup[] = [];
@@ -277,53 +273,13 @@ export class WeebRenderer {
     }
 
     /**
-     * Ensures GPU buffers for a static Mesh asset.
+     * Ensures GPU buffers for a Mesh asset.
      */
-    getOrCreateMeshGpu(mesh: Mesh): GpuMesh {
-        let cached = this.meshCache.get(mesh.id);
-        if (cached) return cached;
-
-        const device = this.backend!.device!;
-
-        const vertexBuffer = device.createBuffer({
-            label: `MeshVertex_${mesh.name}_${mesh.id}`,
-            size: Math.max(32, mesh.vertices.byteLength),
-            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-        });
-        if (mesh.vertices.byteLength > 0) {
-            device.queue.writeBuffer(
-                vertexBuffer,
-                0,
-                mesh.vertices.buffer as ArrayBuffer,
-                mesh.vertices.byteOffset,
-                mesh.vertices.byteLength
-            );
+    getOrCreateMeshGpu(mesh: Mesh): Mesh {
+        if (!mesh.vertexBuffer || !mesh.indexBuffer) {
+            mesh.gpuCreate(this.backend!.device!);
         }
-
-        const is32Bit = mesh.indices instanceof Uint32Array;
-        const indexBuffer = device.createBuffer({
-            label: `MeshIndex_${mesh.name}_${mesh.id}`,
-            size: Math.max(4, mesh.indices.byteLength),
-            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-        });
-        if (mesh.indices.byteLength > 0) {
-            device.queue.writeBuffer(
-                indexBuffer,
-                0,
-                mesh.indices.buffer as ArrayBuffer,
-                mesh.indices.byteOffset,
-                mesh.indices.byteLength
-            );
-        }
-
-        cached = {
-            vertexBuffer,
-            indexBuffer,
-            indexFormat: is32Bit ? "uint32" : "uint16",
-            indexCount: mesh.indices.length,
-        };
-        this.meshCache.set(mesh.id, cached);
-        return cached;
+        return mesh;
     }
 
     /**
@@ -434,60 +390,32 @@ export class WeebRenderer {
     /**
      * Ensures GPU texture view and sampler for a Texture asset.
      */
-    getOrCreateTextureResource(texture: Texture | null | undefined): { view: GPUTextureView; sampler: GPUSampler } {
+    getOrCreateTextureResource(texture: Texture | null | undefined): { gpuTex?: GPUTexture; view: GPUTextureView; sampler: GPUSampler } {
         if (!texture) {
             return {
+                gpuTex: this.defaultTexture!,
                 view: this.defaultTextureView ?? this.defaultTexture!.createView(),
                 sampler: this.defaultSampler!,
             };
         }
 
-        let cached = this.textureResourceCache.get(texture.id);
-        if (cached) return cached;
-
-        const device = this.backend!.device!;
-        const width = Math.max(1, texture.width);
-        const height = Math.max(1, texture.height);
-
-        const gpuTex = device.createTexture({
-            label: `TexResource_${texture.name}_${texture.id}`,
-            size: [width, height, 1],
-            format: "rgba8unorm",
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-        });
-
-        if (texture.data) {
-            device.queue.writeTexture(
-                { texture: gpuTex },
-                texture.data.buffer as ArrayBuffer,
-                { bytesPerRow: width * 4 },
-                { width, height }
-            );
+        if (!texture.gpuView) {
+            texture.gpuCreate(this.backend!.device!);
         }
 
-        const sampler = device.createSampler({
-            label: `TexSampler_${texture.name}_${texture.id}`,
-            magFilter: "linear",
-            minFilter: "linear",
-        });
-
-        cached = { gpuTex, view: gpuTex.createView(), sampler };
-        this.textureResourceCache.set(texture.id, cached);
-        return cached;
+        return {
+            gpuTex: texture.gpuTexture ?? undefined,
+            view: texture.gpuView!,
+            sampler: texture.gpuSampler ?? this.defaultSampler!,
+        };
     }
 
     /**
      * Updates an existing GPU texture buffer in-place with current Texture.data contents.
      */
     updateTexture(texture: Texture): void {
-        const cached = this.textureResourceCache.get(texture.id);
-        if (!cached || !texture.data || !this.backend?.device) return;
-        this.backend.device.queue.writeTexture(
-            { texture: cached.gpuTex },
-            texture.data.buffer as ArrayBuffer,
-            { bytesPerRow: texture.width * 4 },
-            { width: texture.width, height: texture.height }
-        );
+        if (!this.backend?.device) return;
+        texture.updateGpu(this.backend.device);
     }
 
     /**
@@ -617,6 +545,7 @@ export class WeebRenderer {
 
             // Ensure Mesh GPU buffers
             const gpuMesh = this.getOrCreateMeshGpu(mesh);
+            if (!gpuMesh.vertexBuffer || !gpuMesh.indexBuffer) continue;
             pass.setVertexBuffer(0, gpuMesh.vertexBuffer);
             pass.setIndexBuffer(gpuMesh.indexBuffer, gpuMesh.indexFormat);
 
