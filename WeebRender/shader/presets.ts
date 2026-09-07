@@ -16,9 +16,9 @@ export function createColorShader(
     graph.outputNode.metadata = { x: 420, y: 120 };
 
     graph.addNode(colorNode);
-    graph.connect(colorNode, "color", graph.outputNode, "baseColor");
-
-    return new Shader(graph.compile(), graph);
+    const bp = graph.compile();
+    if (!bp) throw new Error(`[createColorShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
+    return new Shader(bp, graph);
 }
 
 /**
@@ -59,9 +59,9 @@ export function createTextureShader(
     graph.connect(tintNode, "color", blendNode, "b");
     graph.connect(modeNode, "value", blendNode, "mode");
     graph.connect(factorNode, "value", blendNode, "factor");
-    graph.connect(blendNode, "out", graph.outputNode, "baseColor");
-
-    return new Shader(graph.compile(), graph);
+    const bp = graph.compile();
+    if (!bp) throw new Error(`[createTextureShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
+    return new Shader(bp, graph);
 }
 
 /**
@@ -117,9 +117,9 @@ export function createShadedColorShader(
 
     // 1-wire primary connection into shading node, then to output
     graph.connect(colorNode, "color", shadingNode, "color");
-    graph.connect(shadingNode, "out", graph.outputNode, "baseColor");
-
-    return new Shader(graph.compile(), graph);
+    const bp = graph.compile();
+    if (!bp) throw new Error(`[createShadedColorShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
+    return new Shader(bp, graph);
 }
 
 /**
@@ -164,9 +164,9 @@ export function createShadedTextureShader(
 
     // 1-wire connection into basic shading node, then to output
     graph.connect(blendNode, "out", shadingNode, "color");
-    graph.connect(shadingNode, "out", graph.outputNode, "baseColor");
-
-    return new Shader(graph.compile(), graph);
+    const bp = graph.compile();
+    if (!bp) throw new Error(`[createShadedTextureShader] Compilation failed: ${graph.diag.lastErr()?.raw}`);
+    return new Shader(bp, graph);
 }
 
 /**

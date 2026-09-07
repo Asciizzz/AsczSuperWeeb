@@ -370,14 +370,15 @@ Terminal sink node of a shader graph. Automatically provided on `graph.outputNod
 
 ## WebGPU Memory Layout & Compilation
 
-Handled by [`ShaderGraph.compile()`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/graph.ts#L47):
+Handled by [`ShaderGraph.compile()`](file:///C:/Users/Admin/Downloads/AsczSuperWeeb/WeebRender/shader/graph.ts#L80):
 
 1. **Topological Sorting**: Resolves upstream-to-downstream execution order via graph DAG traversal.
-2. **Memory Packing (std140)**:
+2. **Parameter Validation**: Enforces strict parameter name uniqueness across all uniform nodes and texture sample nodes. If duplicate parameter names are detected, compilation aborts cleanly, returns `null`, and writes diagnostic errors (`ERR_DUPLICATE_SHADER_PARAM`) to the graph's `Adiag` collector (`graph.diag`).
+3. **Memory Packing (std140)**:
    - `vec4`: Aligned to 16 bytes.
    - `float`: Aligned to 4 bytes.
    - Total uniform buffer rounded up to a multiple of 16 bytes.
-3. **Pre-baked Float32Array**: The compiler produces `paramLayout.defaultUniformData`, baking all default values into contiguous bytes once at compile time.
+4. **Pre-baked Float32Array**: The compiler produces `paramLayout.defaultUniformData`, baking all default values into contiguous bytes once at compile time.
 
 ### Bind Group 2 Structure
 
@@ -509,7 +510,8 @@ graph.connect(tintParam, "color", shading, "color");
 graph.connect(shading, "out", graph.outputNode, "baseColor");
 
 // Universal shader automatically supports both static (stride 32) and skinned (stride 64) meshes
-const shader = new Shader(graph.compile(), graph);
+const bp = graph.compile();
+const shader = new Shader(bp!, graph);
 
 // 2. Pure Geometry Mesh
 const mesh = createSkinnedBarMesh("Column", 0.7, 3.0, 0.7, 16);

@@ -118,7 +118,8 @@ graph.connect(texNode, "color", mulNode, "a");
 graph.connect(tintNode, "color", mulNode, "b");
 graph.connect(mulNode, "out", graph.outputNode, "baseColor");
 
-const rockShader = new Shader(graph.compile());
+const bp = graph.compile();
+const rockShader = new Shader(bp!);
 
 // 2. Create Geometry Mesh
 const mesh = new Mesh(

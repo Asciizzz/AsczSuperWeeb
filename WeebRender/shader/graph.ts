@@ -1,4 +1,5 @@
 import { Adataflow, type Awire } from "../../Atoolkit/adataflow/index.js";
+import { Adiag } from "../../Atoolkit/adiag/index.js";
 import {
     ShaderNode,
     OutputNode,
@@ -39,11 +40,13 @@ export interface CompiledShaderBlueprint {
  */
 export class ShaderGraph extends Adataflow {
     readonly name: string;
+    readonly diag: Adiag;
     private _lastOutputNode: OutputNode;
 
-    constructor(name = "ShaderGraph") {
+    constructor(name = "ShaderGraph", diag?: Adiag) {
         super({ label: name });
         this.name = name;
+        this.diag = diag ?? new Adiag();
         this._lastOutputNode = new OutputNode(`${name}_Output`);
         super.addNode(this._lastOutputNode);
     }
@@ -74,6 +77,8 @@ export class ShaderGraph extends Adataflow {
 
     /**
      * Compiles the node graph into WGSL shader code and precomputes uniform layouts.
+     * Validates parameter name uniqueness across uniform nodes and texture sample nodes.
+     * Returns null and records diagnostic errors if duplicate parameter names are encountered.
      */
     compile(options: {
         target?: string;
@@ -81,12 +86,51 @@ export class ShaderGraph extends Adataflow {
         skinned?: boolean;
         cullMode?: GPUCullMode;
         topology?: GPUPrimitiveTopology;
-    } = {}): CompiledShaderBlueprint {
+        diag?: Adiag;
+    } = {}): CompiledShaderBlueprint | null {
         const skinned = !!options.skinned;
+        const diag = options.diag ?? this.diag;
+        diag.clear();
+
         // 1. Topological Sort via Adataflow
         const sortedNodes = this.topoSort() as ShaderNode[];
 
-        // 2. Identify All Parameters and Textures
+        // 2. Validate Parameter Name Uniqueness Across All Nodes
+        const seenParams = new Map<string, ShaderNode>();
+        let hasDuplicate = false;
+
+        for (const node of sortedNodes) {
+            let pName: string | undefined;
+            if (node instanceof TextureSampleNode) {
+                pName = node.paramName ?? node.id;
+            } else if (isShaderParam(node) && node.paramName) {
+                pName = node.paramName;
+            }
+
+            if (pName) {
+                const existing = seenParams.get(pName);
+                if (existing) {
+                    diag.err({
+                        code: "ERR_DUPLICATE_SHADER_PARAM",
+                        raw: `Duplicate parameter name "${pName}" on node "${node.id}" (conflicts with node "${existing.id}")`,
+                        data: {
+                            paramName: pName,
+                            conflictingNodeId: node.id,
+                            existingNodeId: existing.id,
+                        },
+                    });
+                    hasDuplicate = true;
+                } else {
+                    seenParams.set(pName, node);
+                }
+            }
+        }
+
+        if (hasDuplicate) {
+            return null;
+        }
+
+        // 3. Identify All Parameters and Textures
         const uniformsMap = new Map<string, UniformParamDef>();
         const texturesMap = new Map<string, TextureParamDef>();
         const textureNodes: TextureSampleNode[] = [];
@@ -106,10 +150,6 @@ export class ShaderGraph extends Adataflow {
                     defaultTexture: node.defaultTexture,
                 });
             } else if (isShaderParam(node) && node.paramName) {
-                if (uniformsMap.has(node.paramName)) {
-                    // Parameter already registered; reuse existing uniform slot to prevent struct offset divergence
-                    continue;
-                }
                 if (node instanceof ColorNode || node instanceof ParamVec4Node) {
                     // Align to 16 bytes
                     currentByteOffset = Math.ceil(currentByteOffset / 16) * 16;
