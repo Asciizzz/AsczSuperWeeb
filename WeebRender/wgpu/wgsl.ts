@@ -297,12 +297,12 @@ export function compileWgsl(
     const diag = options.diag ?? graph.diag;
     diag.clear();
 
-    // 1. Validate parameters uniqueness
+    // 1. Validate parameters uniqueness on contributing nodes
     const valid = graph.validateParams(diag);
     if (!valid) return null;
 
-    // 2. Topological sort
-    const sortedNodes = graph.topoSort() as ShaderNode[];
+    // 2. Topological sort of contributing nodes
+    const sortedNodes = graph.getExecutableNodes();
 
     // 3. Extract layout & texture nodes
     const { paramLayout, textureNodes } = graph.buildParamLayout(sortedNodes);

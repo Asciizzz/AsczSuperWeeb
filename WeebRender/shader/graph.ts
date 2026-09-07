@@ -79,18 +79,63 @@ export class ShaderGraph extends Adataflow {
     }
 
     /**
+     * Finds all nodes that have a directed path to the output node (upstream contributing nodes).
+     * Disconnected nodes with no path to the output node are excluded.
+     */
+    getContributingNodes(): Set<ShaderNode> {
+        const contributing = new Set<ShaderNode>();
+        const outNode = this.outputNode;
+        if (!outNode || !this.hasNode(outNode.id)) {
+            return contributing;
+        }
+
+        const visited = new Set<string>();
+        const queue: string[] = [outNode.id];
+        visited.add(outNode.id);
+
+        while (queue.length > 0) {
+            const currId = queue.shift()!;
+            const inWires = this.getIncomingWires(currId);
+            for (const wire of inWires) {
+                if (!visited.has(wire.outNodeId)) {
+                    visited.add(wire.outNodeId);
+                    queue.push(wire.outNodeId);
+                }
+            }
+        }
+
+        for (const id of visited) {
+            const node = this.nodes.get(id);
+            if (node instanceof ShaderNode) {
+                contributing.add(node);
+            }
+        }
+        return contributing;
+    }
+
+    /**
+     * Topologically sorts only the active nodes that contribute to the shader output.
+     * Dead / disconnected nodes are pruned.
+     */
+    getExecutableNodes(): ShaderNode[] {
+        const contributing = this.getContributingNodes();
+        const allSorted = this.topoSort() as ShaderNode[];
+        return allSorted.filter((n) => contributing.has(n));
+    }
+
+    /**
      * Validates that parameter names across uniform nodes and texture sample nodes are unique.
      * Records diagnostic errors if duplicates are encountered.
      */
     validateParams(diag?: Adiag): boolean {
         const d = diag ?? this.diag;
-        const sortedNodes = this.topoSort() as ShaderNode[];
+        const sortedNodes = this.getExecutableNodes();
         const seenParams = new Map<string, ShaderNode>();
         let hasDuplicate = false;
 
         for (const node of sortedNodes) {
             let pName: string | undefined;
-            if (node instanceof TextureSampleNode) {
+            if (node instanceof TextureSampleNode && node.isParam) {
                 pName = node.paramName ?? node.id;
             } else if (isShaderParam(node) && node.paramName) {
                 pName = node.paramName;
@@ -125,7 +170,7 @@ export class ShaderGraph extends Adataflow {
         paramLayout: ShaderParamLayout;
         textureNodes: TextureSampleNode[];
     } {
-        const nodes = sortedNodes ?? (this.topoSort() as ShaderNode[]);
+        const nodes = sortedNodes ?? this.getExecutableNodes();
         const uniformsMap = new Map<string, UniformParamDef>();
         const texturesMap = new Map<string, TextureParamDef>();
         const textureNodes: TextureSampleNode[] = [];
@@ -138,12 +183,14 @@ export class ShaderGraph extends Adataflow {
                 node.textureIndex = texIdx;
                 textureNodes.push(node);
 
-                const paramName = node.paramName ?? node.id;
-                texturesMap.set(paramName, {
-                    name: paramName,
-                    bindingIndex: 1 + texIdx * 2, // texture at 1 + 2*i, sampler at 2 + 2*i (0 is uMaterial)
-                    defaultTexture: node.defaultTexture,
-                });
+                if (node.isParam) {
+                    const paramName = node.paramName ?? node.id;
+                    texturesMap.set(paramName, {
+                        name: paramName,
+                        bindingIndex: 1 + texIdx * 2, // texture at 1 + 2*i, sampler at 2 + 2*i (0 is uMaterial)
+                        defaultTexture: node.defaultTexture,
+                    });
+                }
             } else if (isShaderParam(node) && node.paramName) {
                 if (node instanceof ColorNode || node instanceof ParamVec4Node) {
                     // Align to 16 bytes

@@ -559,6 +559,7 @@ export class WgpuRenderer {
             const paramName = texNode.paramName ?? texNode.id;
             const paramVal = paramValues?.[paramName];
             const gTex = (paramVal instanceof GTexture ? paramVal : undefined)
+                ?? (texNode.defaultTexture instanceof GTexture ? texNode.defaultTexture : undefined)
                 ?? this.defaultGTexture!;
 
             texKey += `_${gTex.id}`;
