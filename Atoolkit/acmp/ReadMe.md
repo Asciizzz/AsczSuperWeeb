@@ -17,29 +17,31 @@ Isolated execution unit receiving a mutable context (`ctx`) and optional diagnos
 ## API Reference
 
 ### `Acmp<TCtx = unknown, TRet = void>`
-Base class for executable components.
+Base class for executable components:
+
+```ts
+export class Acmp<TCtx = unknown, TRet = void> {
+    exec(ctx: TCtx, diag?: Adiag): TRet;
+}
+```
+
+* **`ctx`**: Mutable execution context passed directly to the component.
+* **`diag`**: Optional diagnostic collector for reporting errors and telemetry.
+* **`TRet`**: Typed return value (defaults to `void`). Used when queries or calculations return data directly rather than mutating `ctx`.
 
 ```ts
 import { Acmp } from "Atoolkit/acmp";
 import type { Adiag } from "Atoolkit/adiag";
 
-// 1. Context mutation / command recording (TRet defaults to void)
-export class DrawMesh extends Acmp<RenderCtx> {
-    override exec(ctx: RenderCtx, diag?: Adiag): void {
-        ctx.draw();
-    }
-}
-
-// 2. Custom return value
-export class RaycastQuery extends Acmp<PhysicsCtx, HitResult | null> {
-    override exec(ctx: PhysicsCtx): HitResult | null {
-        return ctx.raycast(this.origin, this.dir);
+export class ProcessBuffer extends Acmp<BufferContext> {
+    override exec(ctx: BufferContext, diag?: Adiag): void {
+        ctx.flush();
     }
 }
 ```
 
 ### `acmp(fn)`
-Constructs `Acmp` instance from inline function. Infers `TRet` automatically:
+Constructs `Acmp` instance from an inline function, inferring `TRet` automatically:
 
 ```ts
 import { acmp } from "Atoolkit/acmp";

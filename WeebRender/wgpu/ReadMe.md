@@ -9,26 +9,47 @@ WebGPU hardware implementation for `WeebRender`, managing GPU buffers, pipelines
 ### `wmesh.ts`
 
 `WgpuMesh` specializes `GpuMesh<WgpuMeshPayload>`:
-- Exposes typed getters for `vertexBuffer` (`GPUBuffer`), `indexBuffer` (`GPUBuffer`), and `indexFormat` (`GPUIndexFormat`).
-- Guarantees 4-byte multiple buffer sizes (`Math.ceil(size / 4) * 4`) and uses `writeBufferPadded` to prevent WebGPU DOMExceptions on odd-length index buffers.
-- Supports factory allocation via `WgpuMesh.fromMesh(device, mesh)` and non-owning reference wrapping via `WgpuMesh.ref(vertexBuffer, indexBuffer, options)`.
-- Dynamically resizes GPU buffers on `updateFromMesh(device, mesh)` when incoming data exceeds existing buffer size.
+
+```ts
+export class WgpuMesh extends GpuMesh<WgpuMeshPayload> {
+    static fromMesh(device: GPUDevice, mesh: Mesh, label?: string): WgpuMesh;
+    static ref(vertexBuffer: GPUBuffer, indexBuffer?: GPUBuffer, options?: WgpuMeshRefOptions): WgpuMesh;
+    updateFromMesh(device: GPUDevice, mesh: Mesh): void;
+}
+```
+
+* **`fromMesh(...)`**: Allocates GPU buffers with 4-byte padding guarantees and uploads vertex and index data.
+* **`ref(...)`**: Wraps existing GPU buffers without taking ownership of underlying allocations.
+* **`updateFromMesh(...)`**: Dynamically reallocates GPU buffers if incoming mesh data exceeds current buffer capacity.
 
 ### `wtexture.ts`
 
 `WgpuTexture` specializes `GpuTexture<WgpuTexturePayload>`:
-- Exposes typed getters for `gpuTexture` (`GPUTexture`), `gpuView` (`GPUTextureView`), and `gpuSampler` (`GPUSampler`).
-- Uploads raw pixel data via `WgpuTexture.fromTexture(device, texture)`.
-- Wraps existing GPU texture handles for offscreen Render-to-Texture (RTT) targets via `WgpuTexture.ref(texture, options)`.
-- Supports manual resource release via `destroy()`.
+
+```ts
+export class WgpuTexture extends GpuTexture<WgpuTexturePayload> {
+    static fromTexture(device: GPUDevice, texture: Texture, options?: WgpuTextureOptions): WgpuTexture;
+    static ref(texture: GPUTexture, options?: WgpuTextureRefOptions): WgpuTexture;
+    destroy(): void;
+}
+```
+
+* **`fromTexture(...)`**: Allocates a 2D `GPUTexture`, derives format parameters, and writes pixel byte buffers.
+* **`ref(...)`**: Wraps external textures (e.g. render targets) with custom view and sampler configurations.
 
 ### `wshader.ts`
 
 `WgpuShader` specializes `GpuShader<WgpuShaderPayload>`:
-- Constructor accepts a `ShaderCircuit` directly, compiling backend WGSL and layouts on initialization.
-- Caches compiled `GPURenderPipeline` instances by vertex stride and skinning state (`32_static` vs `64_skinned`).
-- Manages `materialBindGroupLayout` (Group 2) and `skinBindGroupLayout` (Group 3).
-- Supports runtime pipeline hot-reloading via `invalidateGpu()`.
+
+```ts
+export class WgpuShader extends GpuShader<WgpuShaderPayload> {
+    constructor(circuit: ShaderCircuit);
+    invalidateGpu(): void;
+}
+```
+
+* **`constructor(circuit)`**: Compiles the `ShaderCircuit` directly to WGSL and sets up pipeline layouts on initialization.
+* **`invalidateGpu()`**: Discards cached pipelines to force hardware pipeline recreation upon parameter or circuit changes.
 
 ### `wgsl.ts`
 

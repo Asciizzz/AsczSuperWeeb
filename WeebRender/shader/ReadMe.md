@@ -125,6 +125,9 @@ export interface ShaderParamProvider {
 export function isShaderParam(node: unknown): node is ShaderParamProvider;
 ```
 
+* **`isParam`**: Flags whether the node declares a mutable uniform buffer entry or texture binding slot.
+* **`paramName`**: Parameter key used for runtime overrides on `MaterialCmp`. Defaults to the node ID if omitted.
+
 #### ParamVec4Node
 Dedicated uniform parameter node for `vec4` values. Aligned to 16 bytes.
 - Outputs: `"color"` (`vec4`), `"rgb"` (`vec3`), `"alpha"` (`float`).
@@ -194,6 +197,10 @@ export interface CompiledWgsl {
     textureNodes: TextureSampleNode[];
 }
 ```
+
+* **`codeStatic` / `codeSkinned`**: Emitted WGSL source strings for rigid (stride 32) and skinned (stride 64) vertex configurations.
+* **`paramLayout`**: Uniform buffer byte offsets, total buffer allocation size, and default value payload.
+* **`textureNodes`**: Array of texture sample nodes defining fragment shader texture and sampler binding slots.
 
 ---
 

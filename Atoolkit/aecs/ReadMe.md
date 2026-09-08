@@ -46,40 +46,54 @@ Removing a component swaps the final dense element into the target slot and pops
 
 ## API
 
-### Lifecycle
+```ts
+export class Aecs {
+    constructor(options?: AecsOptions);
 
-- `spawn(...components: Acmp[]): Aent`: Allocates entity, attaches initial components, and returns identifier.
-- `kill(entity: Aent): boolean`: Destroys entity, purges components, and recycles slot.
-- `isAlive(entity: Aent): boolean`: Checks whether entity matches current slot generation.
-- `count(): number`: Returns total count of active entities.
-- `entities(): Aent[]`: Returns array of active entity identifiers.
-- `clear(): void`: Clears all entities and resets component stores.
+    spawn(...components: Acmp[]): Aent;
+    kill(entity: Aent): boolean;
+    isAlive(entity: Aent): boolean;
+    count(): number;
+    entities(): Aent[];
+    clear(): void;
 
-### Component Operations
+    set<T extends Acmp>(entity: Aent, component: T, cmpClass?: AcmpClass<T>): this;
+    setAll(entity: Aent, ...components: Acmp[]): this;
+    get<T extends Acmp>(entity: Aent, cmpClass: AcmpClass<T>): T | null;
+    has(entity: Aent, cmpClass: AcmpClass<any>): boolean;
+    remove(entity: Aent, cmpClass: AcmpClass<any>): boolean;
+    removeAll(entity: Aent, ...cmpClasses: AcmpClass[]): this;
+    clearComponents(entity: Aent): this;
+    getComponents(entity: Aent): Acmp[];
 
-- `set<T extends Acmp>(entity: Aent, component: T, cmpClass?: AcmpClass<T>): this`: Attaches or updates component instance.
-- `setAll(entity: Aent, ...components: Acmp[]): this`: Batch attaches multiple components.
-- `get<T extends Acmp>(entity: Aent, cmpClass: AcmpClass<T>): T | null`: Retrieves component instance.
-- `has(entity: Aent, cmpClass: AcmpClass<any>): boolean`: Checks whether entity contains component.
-- `remove(entity: Aent, cmpClass: AcmpClass<any>): boolean`: Removes component.
-- `removeAll(entity: Aent, ...cmpClasses: AcmpClass[]): this`: Batch removes component types.
-- `clearComponents(entity: Aent): this`: Removes all components while leaving entity alive.
-- `getComponents(entity: Aent): Acmp[]`: Returns attached components for entity.
+    query<const T extends readonly AcmpClass[]>(...cmpClasses: T): Aquery<InferAcmpInstances<T>>;
+    execEntity<TCtx = unknown, TRet = void>(entity: Aent, ctx: TCtx, diag?: Adiag): TRet[];
+}
+```
 
-### Queries
+* **`spawn(...components)`**: Allocates a packed 32-bit entity identifier (`Aent`), reusing recycled slot indices before expanding capacity.
+* **`kill(entity)`**: Purges all attached components from sparse sets, increments slot generation counter, and pushes index to the recycling pool.
+* **`isAlive(entity)`**: O(1) generational validation comparing the identifier's generation against current slot state.
+* **`clearComponents(entity)`**: Removes all attached components from sparse sets while preserving entity identity and lifecycle state.
+* **`execEntity(entity, ctx, diag?)`**: Invokes `cmp.exec(ctx, diag)` sequentially across all components attached to the entity.
 
-- `query(...cmpClasses: AcmpClass[]): Aquery`: Creates iterator over entities matching component signature.
-  - `.with(...cmpClasses)`: Requires components without yielding them in the tuple. Acts as loop driver if smaller than required stores.
-  - `.without(...cmpClasses)`: Excludes entities containing specified components in O(1) time.
-  - `.some(...cmpClasses)`: Requires at least one matching component from list.
-  - `.entities(): Aent[]`: Returns matching entity IDs.
-  - `.first(): [Aent, ...TInstances] | null`: Returns first matching result.
-  - `.count(): number`: Returns total count of matching entities.
-  - `.forEach((entity, ...cmps) => void)`: Iterates matching entities via callback.
+```ts
+export class Aquery<TInstances extends readonly any[] = any[]> implements Iterable<[Aent, ...TInstances]> {
+    with(...types: AcmpClass[]): this;
+    without(...types: AcmpClass[]): this;
+    some(...types: AcmpClass[]): this;
 
-### Component Execution
+    first(): [Aent, ...TInstances] | null;
+    entities(): Aent[];
+    count(): number;
+    forEach(fn: (entity: Aent, ...components: TInstances) => void): void;
+}
+```
 
-- `execEntity<TCtx, TRet>(entity: Aent, ctx: TCtx, diag?: Adiag): TRet[]`: Calls `cmp.exec(ctx, diag)` on attached components in sequence.
+* **`[Symbol.iterator]`**: Uses the smallest sparse set among required and `.with` types to drive the iteration loop, evaluating secondary criteria in O(1) time.
+* **`.with(...types)`**: Requires component presence without yielding instances in the result tuple. Serves as driver loop if smaller than required stores.
+* **`.without(...types)`**: O(1) exclusion filter skipping entities holding any specified component types.
+* **`.some(...types)`**: Requires presence of at least one component from the set.
 
 ---
 

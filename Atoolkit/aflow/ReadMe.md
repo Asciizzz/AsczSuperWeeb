@@ -102,58 +102,41 @@ export class MyComponent extends Acmp<MyContext> {
 }
 ```
 
-### Node and Payload Operations
-- `addNode(options)`: Adds node with payload `Acmp[]` or single `Acmp`.
-- `addPayload(nodeId, cmp)`: Appends component to existing node.
-- `addPayloads(nodeId, cmps)`: Appends array of components.
-- `getNode(id)` / `hasNode(id)`: Looks up node or verifies existence.
-- `popNode(id)` / `removeNode(id)`: Removes node and incident edges.
-
-### Link Operations and Types
-- `addLink(srcId, dstId, options?)`: Adds directed link, returning null if cycle would form.
-- `getLink(id)`: Looks up edge by ID.
-- `popLink(id)` / `removeLink(id)`: Removes link.
-- `sortOutgoingLinks(nodeId, sortFn)`: Sorts outgoing links to enforce branch order.
-- `sortIncomingLinks(nodeId, sortFn)`: Sorts incoming links.
-- `resetOnceLinks()`: Resets `_onceFired` flag on `kind: "once"` links.
-
-Link behavior is configured via `data`:
+### `Aflow<TCtx>`
 
 ```ts
-// "pass" (default): Always traversed
-flow.addLink("nodeA", "nodeB", { data: { kind: "pass" } });
+export class Aflow<TCtx = unknown> {
+    constructor(graph?: Agraph<Acmp<TCtx, any>[], any>, diag?: Adiag);
 
-// "conditional": Evaluates predicate against context
-flow.addLink("sourceNode", "filteredNode", {
-    data: {
-        kind: "conditional",
-        when: (ctx: MyCtx) => ctx.active === true,
-    }
-});
+    addNode(options?: AflowAddNodeOptions<TCtx>): Anode<Acmp<TCtx, any>[]> | null;
+    addPayload(nodeId: string, cmp: Acmp<TCtx, any>): this;
+    addPayloads(nodeId: string, cmps: Acmp<TCtx, any>[]): this;
+    addLink(srcId: string, dstId: string, options?: AflowAddLinkOptions): Aedge | null;
+    sortOutgoingLinks(nodeId: string, sortFn: EdgeSortFn): this;
+    sortIncomingLinks(nodeId: string, sortFn: EdgeSortFn): this;
+    resetOnceLinks(): void;
 
-// "skip": Retained in topology but ignored during run()
-flow.addLink("debugNode", "outputNode", { data: { kind: "skip" } });
-
-// "once": Runs on first call, skipped on subsequent calls
-flow.addLink("root", "initResources", { data: { kind: "once" } });
-
-// enabled === false skips unconditionally
-flow.addLink("nodeA", "nodeB", { data: { enabled: false } });
+    run(from: string, options?: AflowRunOptions<TCtx>): AflowRunResult<TCtx>;
+    dryRun(fromNodeId: string, options?: Omit<AflowRunOptions<TCtx>, "_dryRun">): {
+        visitOrder: Anode<Acmp<TCtx>[]>[];
+        issues: AdiagResult[];
+    };
+}
 ```
 
-### Traversal and Testing
+* **`addLink(srcId, dstId, options?)`**: Inserts a directed link, verifying acyclic invariants via `Adag`. Attaches optional traversal metadata via `options.data`.
+* **`sortOutgoingLinks(nodeId, sortFn)`**: Enforces branch execution priority by sorting outgoing edges in place.
+* **`run(from, options?)`**: Executes DFS traversal. Passes mutable `options.ctx` and `options.diag` through component payloads. `visitMode` controls whether shared nodes execute once globally (`"once"`) or per-branch with backtracking (`"path"`).
+* **`dryRun(fromNodeId, options?)`**: Simulates traversal and evaluates conditional link predicates without executing component payloads.
 
-- `run(fromNodeId, options?)`: Executes DFS traversal from `fromNodeId`.
-  - `visitMode`: `"once"` (default) or `"path"`.
-  - `ctx`: Context object passed through all components.
-  - `onNodeEnter(node, ctx)`: Hook before components execute on node.
-  - `onNodeLeave(node, ctx)`: Hook after node and descendants complete.
-  - Returns `{ ctx, diag }`.
+```ts
+export interface AflowLinkData {
+    kind?: "pass" | "conditional" | "skip" | "once";
+    when?: (ctx: any) => boolean;
+    enabled?: boolean;
+    order?: number;
+}
+```
 
-- `dryRun(fromNodeId, options?)`: Simulates traversal without calling component payloads. Accepts optional `ctx` for conditional link evaluation:
-  ```ts
-  const { visitOrder, issues } = flow.dryRun("root", {
-      ctx: { active: false },
-      visitMode: "path",
-  });
-  ```
+* **`kind`**: Traversal strategy. `"conditional"` evaluates `when(ctx)`, `"skip"` maintains topology while bypassing traversal, and `"once"` executes only on the initial run.
+* **`enabled`**: Setting `false` bypasses edge traversal unconditionally.

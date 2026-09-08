@@ -139,7 +139,7 @@ export class ShaderCircuit extends Acircuit {
         }
 
         if (sorted.length !== contributing.size) {
-            throw new Error(`[ShaderGraph] Cyclic dependency detected among contributing nodes in "${this.name}".`);
+            throw new Error(`[ShaderCircuit] Cyclic dependency detected among contributing nodes in "${this.name}".`);
         }
 
         return sorted;

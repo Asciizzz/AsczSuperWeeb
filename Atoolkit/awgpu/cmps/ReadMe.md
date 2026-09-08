@@ -23,13 +23,15 @@ cmp.exec(ctx, diag);
 ```ts
 new BeginFrame(label?: string)
 ```
-- Action: Allocates `GPUCommandEncoder` on `ctx.encoder`, resets buffer/bindgroup/texture caches, and sets `ended = false`.
+
+* Allocates a `GPUCommandEncoder` on `ctx.encoder`, resets buffer/bindgroup caches, and sets `ended = false`.
 
 ### `EndFrame`
 ```ts
 new EndFrame()
 ```
-- Action: Finishes encoder, submits to `ctx.queue`, and sets `ended = true`.
+
+* Finishes command recording, submits command buffers to `ctx.queue`, and sets `ended = true`.
 
 ---
 
@@ -45,8 +47,8 @@ interface RenderPassData {
     depthStencilAttachment?: GPURenderPassDepthStencilAttachment | undefined | ((ctx: AwgpuCtx) => GPURenderPassDepthStencilAttachment | undefined);
 }
 ```
-- Action: Begins render pass via `ctx.encoder.beginRenderPass(...)` and sets `ctx.passKind = "render"`.
-- Dynamic Views: `colorAttachments` and `depthStencilAttachment` accept callbacks `(ctx) => [...]` for per-frame canvas views.
+
+* **`colorAttachments` / `depthStencilAttachment`**: Accept static attachment descriptors or dynamic callbacks `(ctx) => [...]` to resolve per-frame canvas texture views.
 
 ### `ComputePass`
 ```ts
@@ -57,13 +59,15 @@ interface ComputePassData {
     timestampWrites?: GPUComputePassTimestampWrites;
 }
 ```
-- Action: Begins compute pass via `ctx.encoder.beginComputePass(...)` and sets `ctx.passKind = "compute"`.
+
+* Begins a compute pass via `ctx.encoder.beginComputePass(...)` and sets `ctx.passKind = "compute"`.
 
 ### `EndPass`
 ```ts
 new EndPass()
 ```
-- Action: Calls `ctx.pass.end()` and nullifies pass/pipeline handles.
+
+* Calls `ctx.pass.end()` and nullifies active pass and pipeline handles on `ctx`.
 
 ---
 
@@ -73,7 +77,8 @@ new EndPass()
 ```ts
 new UsePipeline(pipeline: GPURenderPipeline | GPUComputePipeline | null)
 ```
-- Action: Binds pipeline via `ctx.pass.setPipeline(pipeline)`.
+
+* Binds the pipeline via `ctx.pass.setPipeline(pipeline)`.
 
 ### `SetBindGroups`
 ```ts
@@ -88,7 +93,8 @@ interface BindGroupEntry {
     dynamicOffsetsDataLength?: number;
 }
 ```
-- Action: Iterates entries and invokes `ctx.pass.setBindGroup(entry.index, entry.bindGroup, ...)`.
+
+* **`dynamicOffsets`**: Provides dynamic byte offsets for bound uniform or storage buffers.
 
 ---
 
@@ -103,27 +109,11 @@ interface SetBuffersData {
     index?:    IndexBufferEntry | null;
     indirect?: IndirectBufferEntry | null;
 }
-
-interface VertexBufferEntry {
-    slot:    number;
-    buffer:  GPUBuffer;
-    offset?: number; // default: 0
-    size?:   number;
-}
-
-interface IndexBufferEntry {
-    buffer:  GPUBuffer;
-    format:  GPUIndexFormat; // "uint16" | "uint32"
-    offset?: number; // default: 0
-    size?:   number;
-}
-
-interface IndirectBufferEntry {
-    buffer:  GPUBuffer;
-    offset?: number;
-}
 ```
-- Action: Binds vertex buffers to slots and attaches index buffer on `ctx.pass`.
+
+* **`vertex`**: Array of slot-indexed vertex buffer descriptors with explicit byte offsets.
+* **`index`**: Index buffer entry specifying buffer handle, format (`"uint16"` or `"uint32"`), and byte offset.
+* **`indirect`**: Indirect buffer descriptor for GPU-driven draw calls.
 
 ---
 
@@ -140,7 +130,8 @@ interface DrawData {
     firstInstance?: number; // default: 0
 }
 ```
-- Action: Dispatches `ctx.pass.draw(vertexCount, instanceCount, firstVertex, firstInstance)`.
+
+* Dispatches `ctx.pass.draw(vertexCount, instanceCount, firstVertex, firstInstance)`.
 
 ### `DrawIndexed`
 ```ts
@@ -154,7 +145,8 @@ interface DrawIndexedData {
     firstInstance?: number; // default: 0
 }
 ```
-- Action: Dispatches `ctx.pass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)`.
+
+* Dispatches `ctx.pass.drawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance)`.
 
 ### `DrawIndirect`
 ```ts
@@ -165,13 +157,15 @@ interface DrawIndirectData {
     indirectOffset?: number; // default: 0
 }
 ```
-- Action: Dispatches `ctx.pass.drawIndirect(indirectBuffer, indirectOffset)`.
+
+* Dispatches `ctx.pass.drawIndirect(indirectBuffer, indirectOffset)`.
 
 ### `DrawIndexedIndirect`
 ```ts
 new DrawIndexedIndirect(data: DrawIndirectData)
 ```
-- Action: Dispatches `ctx.pass.drawIndexedIndirect(indirectBuffer, indirectOffset)`.
+
+* Dispatches `ctx.pass.drawIndexedIndirect(indirectBuffer, indirectOffset)`.
 
 ---
 
@@ -187,13 +181,15 @@ interface DispatchData {
     workgroupCountZ?: number; // default: 1
 }
 ```
-- Action: Dispatches `ctx.pass.dispatchWorkgroups(x, y, z)`.
+
+* Dispatches `ctx.pass.dispatchWorkgroups(x, y, z)`.
 
 ### `DispatchIndirect`
 ```ts
 new DispatchIndirect(data: DispatchIndirectData)
 ```
-- Action: Dispatches `ctx.pass.dispatchWorkgroupsIndirect(indirectBuffer, indirectOffset)`.
+
+* Dispatches `ctx.pass.dispatchWorkgroupsIndirect(indirectBuffer, indirectOffset)`.
 
 ---
 

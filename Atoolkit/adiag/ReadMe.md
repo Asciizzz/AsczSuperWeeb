@@ -57,23 +57,43 @@ console.log(diag.findErrs()); // [underlyingErr, taskErr]
 
 ## API
 
-### Instance Methods
+```ts
+export interface AdiagResult {
+    type: string;
+    code: string;
+    raw: string;
+    data: unknown;
+    ref?: AdiagResult | null;
+}
+```
 
-- `ok(args)`: Records 'ok' item, returning `AdiagResult`.
-- `err(args)`: Records 'err' item, returning `AdiagResult`.
-- `warn(args)`: Records 'warn' item, returning `AdiagResult`.
-- `info(args)`: Records 'info' item, returning `AdiagResult`.
-- `last()`: Returns latest entry or null.
-- `lastErr()`: Scans backward for most recent 'err' entry, returning it or null.
-- `clear()`: Empties results array.
-- `hasErrs()` / `findErrs()`: Checks existence of or filters 'err' entries.
-- `hasWarns()` / `findWarns()`: Checks existence of or filters 'warn' entries.
-- `hasInfos()` / `findInfos()`: Checks existence of or filters 'info' entries.
-- `allOk()`: Returns true if every recorded item is 'ok'.
+* **`ref`**: Causal reference pointer linking a high-level failure directly to its low-level cause.
+* **`raw`**: Message template containing `$key$` and `$key.subkey$` placeholders interpolated from `data`.
 
-### Static Helpers
+```ts
+export class Adiag {
+    results: AdiagResult[];
+    state: Record<string, unknown>;
 
-- `Adiag.getCauseChain(result)`: Follows `result.ref` pointers into array `[result, result.ref, ...]`.
-- `Adiag.compileMsg(raw, data)`: Replaces `$key$` and `$key.subkey$` patterns with values from `data`.
-- `Adiag.resultToMsg(result)`: Compiles interpolated string for single result.
-- `Adiag.resultToChainMsg(result)`: Formats causal chain into indented multi-line string.
+    ok(args?: AdiagAddArgs): AdiagResult;
+    err(args?: AdiagAddArgs): AdiagResult;
+    warn(args?: AdiagAddArgs): AdiagResult;
+    info(args?: AdiagAddArgs): AdiagResult;
+
+    last(): AdiagResult | null;
+    lastErr(): AdiagResult | null;
+    allOk(): boolean;
+    clear(): void;
+
+    static getCauseChain(result: AdiagResult | null | undefined): AdiagResult[];
+    static compileMsg(raw?: string, data?: Record<string, unknown>): string;
+    static resultToMsg(result: AdiagResult): string;
+    static resultToChainMsg(result: AdiagResult): string;
+}
+```
+
+* **`results`**: Log history capped at 1,000 entries; shifts oldest items out automatically.
+* **`lastErr()`**: Scans backward from newest entries for the most recent error record.
+* **`getCauseChain(result)`**: Traverses `ref` pointers into an array ordered from high-level failure to root cause, using a visited set to prevent cycles.
+* **`compileMsg(raw, data)`**: Interpolates `$key$` and nested `$key.subkey$` placeholders against `data` values.
+* **`resultToChainMsg(result)`**: Formats the complete causal chain into an indented multi-line diagnostic trace.

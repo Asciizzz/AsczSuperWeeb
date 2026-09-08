@@ -180,7 +180,7 @@ export class WgpuRenderer {
 
     /**
      * Helper factory: Allocates a GPU render target texture for Render-to-Texture (RTT).
-     * Returns a WgpuTexture (GpuTexture) that can be sampled by ShaderGraph or used as an offscreen target.
+     * Returns a WgpuTexture (GpuTexture) that can be sampled by ShaderCircuit or used as an offscreen target.
      */
     createRenderTarget(width: number, height: number, label = "RenderTarget"): WgpuTexture {
         if (!this.backend?.device) {

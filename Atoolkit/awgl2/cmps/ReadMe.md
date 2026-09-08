@@ -23,13 +23,15 @@ cmp.exec(ctx, diag);
 ```ts
 new BeginFrame()
 ```
-- Action: Resets per-frame state: clears vertex/texture maps, nullifies program/VAO/framebuffer handles, and sets `ended = false`.
+
+* Resets per-frame context state: empties vertex/texture mappings, clears active program/VAO/framebuffer handles, and sets `ended = false`.
 
 ### `EndFrame`
 ```ts
 new EndFrame()
 ```
-- Action: Flushes command queue via `ctx.gl.flush()` and sets `ctx.ended = true`.
+
+* Flushes the WebGL command queue via `ctx.gl.flush()` and sets `ctx.ended = true`.
 
 ---
 
@@ -40,31 +42,27 @@ new EndFrame()
 new RenderPass(data?: RenderPassData)
 
 interface RenderPassData {
-    framebuffer?:       WebGLFramebuffer | null;          // null targets canvas default backbuffer
-    width?:             number;                           // Viewport width (defaults to canvas width)
-    height?:            number;                           // Viewport height (defaults to canvas height)
-    scissor?:           ScissorRect;                      // Optional scissor test
-    clearColorEnabled?: boolean;                          // Clear color flag (default: true)
-    clearColor?:        [number, number, number, number]; // [r, g, b, a] (default: [0, 0, 0, 1])
-    useDepth?:          boolean;                          // Enable depth test (default: true)
-    clearDepthEnabled?: boolean;                          // Clear depth flag (default: true)
-    clearDepth?:        number;                           // Clear depth value (default: 1.0)
-}
-
-interface ScissorRect {
-    x?:      number; // default: 0
-    y?:      number; // default: 0
-    width?:  number; // default: viewport width
-    height?: number; // default: viewport height
+    framebuffer?:       WebGLFramebuffer | null;
+    width?:             number;
+    height?:            number;
+    scissor?:           ScissorRect;
+    clearColorEnabled?: boolean;
+    clearColor?:        [number, number, number, number];
+    useDepth?:          boolean;
+    clearDepthEnabled?: boolean;
+    clearDepth?:        number;
 }
 ```
-- Action: Binds framebuffer, configures viewport/scissor rectangles, and executes clear operations.
+
+* **`framebuffer`**: Target framebuffer handle; `null` targets the default canvas backbuffer.
+* **`scissor`**: Optional viewport scissor rectangle constraining draw and clear operations.
 
 ### `EndPass`
 ```ts
 new EndPass()
 ```
-- Action: Unbinds framebuffer (`gl.bindFramebuffer(gl.FRAMEBUFFER, null)`) and resets pass/framebuffer/program handles.
+
+* Unbinds the active framebuffer to target the canvas default buffer and resets active pass state on `ctx`.
 
 ---
 
@@ -74,7 +72,8 @@ new EndPass()
 ```ts
 new UseProgram(program: WebGLProgram | null)
 ```
-- Action: Binds program via `gl.useProgram(program)` and updates `ctx.program`.
+
+* Binds the program via `gl.useProgram(program)` and updates `ctx.program`.
 
 ---
 
@@ -87,22 +86,13 @@ new SetBuffers(data?: SetBuffersData)
 interface SetBuffersData {
     vao?:      WebGLVertexArrayObject | null;
     vertex?:   VertexBufferEntry | VertexBufferEntry[];
-    vertices?: VertexBufferEntry | VertexBufferEntry[]; // alias
+    vertices?: VertexBufferEntry | VertexBufferEntry[];
     index?:    IndexBufferEntry | null;
 }
-
-interface VertexBufferEntry {
-    slot?:   number;      // Attribute slot index (default: 0)
-    buffer:  WebGLBuffer; // Raw VBO
-    offset?: number;      // Byte offset
-}
-
-interface IndexBufferEntry {
-    buffer: WebGLBuffer; // Raw EBO
-    type?:  number;      // gl.UNSIGNED_SHORT or gl.UNSIGNED_INT (default: gl.UNSIGNED_SHORT)
-}
 ```
-- Action: Binds VAO and attaches optional vertex/index buffers.
+
+* **`vao`**: Preconfigured vertex array object; binds attribute pointers and layout directly.
+* **`vertex`** / **`index`**: Direct buffer bindings applied when bypassing an existing VAO handle.
 
 ---
 
@@ -113,14 +103,15 @@ interface IndexBufferEntry {
 new SetTextures(entries?: TextureEntry[])
 
 interface TextureEntry {
-    unit?:    number;          // Texture unit index (0 for gl.TEXTURE0)
-    texture:  WebGLTexture;    // WebGL texture instance
-    target?:  number;          // Texture target (default: gl.TEXTURE_2D)
-    uniform?: string;          // Sampler uniform name on active program
-    program?: WebGLProgram;    // Optional program override
+    unit?:    number;
+    texture:  WebGLTexture;
+    target?:  number;
+    uniform?: string;
+    program?: WebGLProgram;
 }
 ```
-- Action: Activates texture unit, binds texture, and updates sampler uniform if provided.
+
+* **`uniform`**: Sampler uniform name on the active program; automatically writes the assigned texture unit index.
 
 ---
 
@@ -138,7 +129,7 @@ type UniformType =
 
 type UniformEntry = {
     name:       string;
-    program?:   WebGLProgram; // default: ctx.program
+    program?:   WebGLProgram;
 } & (
     | { type: "1i" | "1f"; value: number }
     | { type: "2f" | "3f" | "4f"; value: [number, number, ...number[]] | Float32Array }
@@ -147,7 +138,8 @@ type UniformEntry = {
     | { type: "mat2" | "mat3" | "mat4"; value: number[] | Float32Array; transpose?: boolean }
 );
 ```
-- Action: Resolves uniform locations and invokes corresponding `gl.uniform*` setters.
+
+* **`transpose`**: Specifies whether matrix values (`mat2`, `mat3`, `mat4`) are transposed during upload (defaults to `false`).
 
 ---
 
@@ -166,7 +158,8 @@ interface DrawData {
     instanceCount?: number;        // default: 0 (triggers non-instanced draw)
 }
 ```
-- Action: Dispatches `gl.drawArraysInstanced` or `gl.drawArrays`.
+
+* Dispatches `gl.drawArraysInstanced` or `gl.drawArrays`.
 
 ### `DrawIndexed`
 ```ts
@@ -181,4 +174,5 @@ interface DrawIndexedData {
     instanceCount?: number;        // default: 0
 }
 ```
-- Action: Dispatches `gl.drawElementsInstanced` or `gl.drawElements`.
+
+* Dispatches `gl.drawElementsInstanced` or `gl.drawElements`.

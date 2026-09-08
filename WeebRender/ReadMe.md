@@ -24,9 +24,58 @@ Pure CPU memory representations with zero hardware allocations:
 
 Universal handles store common metadata and expose uniform parameter helpers on the CPU, holding hardware-specific state in `backend`:
 
-- `GpuMesh<TBackend = unknown>`: Vertex count, index count, vertex stride, attributes, submesh ranges, and optional CPU mesh reference.
-- `GpuTexture<TBackend = unknown>`: Dimensions, label, GPU ownership flag, and optional CPU texture reference.
-- `GpuShader<TBackend = unknown>`: `ShaderCircuit` reference, `ShaderParamLayout`, texture nodes, and parameter query methods (`getParamNames`, `hasParam`, `getDefaultParam`, `createDefaultParams`, `createParamsCmp`).
+```ts
+export class GpuMesh<TBackend = unknown> {
+    readonly id: number;
+    name: string;
+    vertexCount: number;
+    indexCount: number;
+    stride: number;
+    attributes: VertexAttribute[];
+    submeshes: Submesh[];
+    backend: TBackend;
+    gpuOwned: boolean;
+    cpuMesh?: Mesh;
+}
+```
+
+* **`backend`**: Hardware-specific buffer container (e.g. `WgpuMeshPayload` or `GLMeshPayload`).
+* **`stride`**: Interleaved vertex byte width (typically 32 bytes for static geometry, 64 bytes for skinned meshes).
+* **`submeshes`**: Index ranges and material slot mappings for multi-material draw calls.
+
+```ts
+export class GpuTexture<TBackend = unknown> {
+    readonly id: number;
+    name: string;
+    width: number;
+    height: number;
+    backend: TBackend;
+    gpuOwned: boolean;
+    cpuTexture?: Texture;
+}
+```
+
+* **`backend`**: Hardware-specific texture and sampler container (e.g. `WgpuTexturePayload`).
+* **`gpuOwned`**: Lifecycle flag indicating whether destroying this handle releases the underlying GPU allocation.
+
+```ts
+export class GpuShader<TBackend = unknown> {
+    readonly id: number;
+    name: string;
+    circuit: ShaderCircuit;
+    paramLayout: ShaderParamLayout;
+    backend: TBackend;
+    gpuOwned: boolean;
+
+    createDefaultParams(): MaterialParamRecord;
+    getParamNames(): string[];
+    hasParam(name: string): boolean;
+}
+```
+
+* **`circuit`**: Pure CPU computation circuit defining node connectivity and math operations.
+* **`paramLayout`**: Memory layout descriptor declaring uniform buffer offsets and texture slot assignments.
+* **`createDefaultParams()`**: Clones default parameter values into a fresh dictionary for material assignment.
 
 Ergonomic aliases `GMesh`, `GTexture`, `GShader`, and `Shader` map directly to these universal handles.
 
@@ -46,7 +95,7 @@ See [wgpu/ReadMe.md](./wgpu/ReadMe.md) for WebGPU backend details.
 #### WebGL2 (`wgl2/`)
 
 Architectural roadmap for WebGL2:
-- Translates `ShaderGraph` AST to GLSL ES 3.0.
+- Translates `ShaderCircuit` topology to GLSL ES 3.0.
 - Specializes universal handles into `GLMesh` (`WebGLVertexArrayObject`, VBO, IBO) and `GLTexture` (`WebGLTexture`).
 
 See [wgl2/ReadMe.md](./wgl2/ReadMe.md) for WebGL2 roadmap details.

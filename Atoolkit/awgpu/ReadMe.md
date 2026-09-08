@@ -211,6 +211,11 @@ interface AwgpuCtx {
 }
 ```
 
+* **`pass`**: Active command pass encoder (`GPURenderPassEncoder` or `GPUComputePassEncoder`).
+* **`passKind`**: Discriminator identifying whether execution is within a render or compute pass.
+* **`buffers`**: State cache of currently bound vertex buffer slots, index format, and indirect draw buffers.
+* **`bindGroups`**: Cache of active bind groups indexed by slot number.
+
 ### `Backend`
 Handles adapter and device requests, canvas configuration, and frame context allocation:
 

@@ -2,53 +2,70 @@
 
 Architectural specification and roadmap for the WebGL2 hardware backend in `WeebRender`.
 
-I feel like I kinda neglect webgl2 a bit too much
-
 ---
 
 ## Overview
 
-The WebGL2 backend targets WebGL 2.0 (OpenGL ES 3.0) contexts, specializing the universal GPU handles defined in `gpu.ts`. High-level scene code, ECS entities, components, and `ShaderGraph` definitions remain unchanged between backends.
+The WebGL2 backend targets WebGL 2.0 (OpenGL ES 3.0) contexts, specializing the universal GPU handles defined in `gpu.ts`. High-level scene code, ECS entities, components, and `ShaderCircuit` definitions remain unchanged between backends.
 
 ---
 
-## Planned Components
+## Modules
 
 ### `glmesh.ts`
 
 `GLMesh` specializes `GpuMesh<GLMeshPayload>`:
-- Manages `WebGLVertexArrayObject` (VAO), vertex buffer (`WebGLBuffer`), and element array buffer (`WebGLBuffer`).
-- Configures vertex attribute pointers from `VertexAttribute` metadata on allocation.
-- Binds VAO in a single call during draw pass execution.
+
+```ts
+export class GLMesh extends GpuMesh<GLMeshPayload> {
+    static fromMesh(gl: WebGL2RenderingContext, mesh: Mesh): GLMesh;
+    static ref(vao: WebGLVertexArrayObject, vbo: WebGLBuffer, ibo?: WebGLBuffer): GLMesh;
+}
+```
+
+* **`fromMesh(...)`**: Configures vertex attribute pointers from `VertexAttribute` metadata and uploads buffer data.
+* **`ref(...)`**: Wraps external VAO and buffer handles without taking ownership of underlying allocations.
 
 ### `gltexture.ts`
 
 `GLTexture` specializes `GpuTexture<GLTexturePayload>`:
-- Manages `WebGLTexture` with 2D texture targets.
-- Sets minification, magnification, and wrap parameters (`gl.texParameteri`).
-- Uploads pixel buffers via `gl.texImage2D` or `gl.texSubImage2D`.
-- Supports framebuffer attachment binding for offscreen render targets.
+
+```ts
+export class GLTexture extends GpuTexture<GLTexturePayload> {
+    static fromTexture(gl: WebGL2RenderingContext, texture: Texture): GLTexture;
+    static ref(texture: WebGLTexture): GLTexture;
+}
+```
+
+* **`fromTexture(...)`**: Allocates a 2D texture, sets minification, magnification, and wrap parameters, and uploads pixel buffers.
+* **`ref(...)`**: Wraps external WebGL textures such as framebuffer attachment targets.
 
 ### `glshader.ts`
 
 `GLShader` specializes `GpuShader<GLShaderPayload>`:
-- Manages compiled `WebGLProgram` linking vertex and fragment shaders.
-- Maintains cached `WebGLUniformLocation` lookups for camera, object, and material parameters.
-- Supports Uniform Buffer Objects (`UBO`) via `gl.bindBufferBase(gl.UNIFORM_BUFFER, ...)` or direct uniform updates.
+
+```ts
+export class GLShader extends GpuShader<GLShaderPayload> {
+    constructor(circuit: ShaderCircuit);
+    invalidateGpu(): void;
+}
+```
+
+* **`constructor(circuit)`**: Compiles the `ShaderCircuit` into GLSL ES 3.0 programs and sets up uniform block layouts.
+* **`invalidateGpu()`**: Discards compiled program caches to force recreation upon parameter or circuit modification.
 
 ### `glsl.ts`
 
 Dedicated WebGL2 shader code compiler:
-- Translates `ShaderCircuit` nodes into GLSL ES 3.0 vertex and fragment shaders.
-- Emits `#version 300 es`, standard attribute locations (`layout(location = 0) in vec3 position;`), and uniform blocks.
-- Invoked by `GLShader` via `compileGlsl(circuit, options)`.
+- `compileGlsl(circuit, options)`: Translates `ShaderCircuit` nodes into GLSL ES 3.0 vertex and fragment shaders.
+- Emits `#version 300 es`, standard attribute locations, and uniform blocks.
 
 ### `renderer.ts`
 
 `Wgl2Renderer`:
 - Initializes `WebGL2RenderingContext`, canvas viewport, depth test, and blending state.
 - Executes scene draw calls by iterating entities with `MeshCmp` and `TransformCmp`.
-- Binds `GLMesh` VAO, activates texture units, uploads uniform blocks, and calls `gl.drawElements`.
+- Binds `GLMesh` VAO, activates texture units, uploads uniform blocks, and dispatches `gl.drawElements`.
 
 ---
 
