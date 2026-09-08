@@ -10,7 +10,7 @@ Not to be confused with Acircus of course.
 
 1. **`Asocket` Inheritance Base**:
    - Holds socket `name` and optional `metadata`.
-   - Domain-specific types, ranges, widgets, or constraints subclass `Asocket` and attach custom properties (e.g. `ShaderSocket`).
+   - Specialized socket types attach custom properties, validation rules, or payloads by subclassing `Asocket`.
 2. **`Awire` Topology Edge**:
    - Directed connection `{ outNodeId, outSocket, inNodeId, inSocket, data?: TData }`.
    - Returns directly from `circuit.connect(...)` for immediate handle tracking and targeted disconnection via `circuit.disconnect(wire)`.

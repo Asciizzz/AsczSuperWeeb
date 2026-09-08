@@ -6,7 +6,7 @@ Directed graph data structure. Stores graph topology only; execution and travers
 
 ## Core Characteristics
 
-1. **Topology Only**: Pure node, directed edge, and adjacency management decoupled from execution or scheduling.
+1. **Topology Only**: Pure node, directed edge, and adjacency management.
 2. **Null Failure Returns**: Invalid operations return `null` instead of throwing unhandled exceptions.
 3. **Diagnostic Telemetry (`Adiag`)**: Logs structured results (`ok`, `warn`, `err`) to optional `Adiag` instances.
 4. **Extraction Semantics**: `popNode` and `popEdge` unlink incident edges and return removed elements.

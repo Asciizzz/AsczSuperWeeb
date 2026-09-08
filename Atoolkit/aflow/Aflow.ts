@@ -87,14 +87,10 @@ export interface AflowRunOptions<TCtx = unknown> {
     diag?:         Adiag;
     /**
      * Controls how nodes are revisited during DFS traversal.
-     * - "once" (default): Global visited set. Each node executes at most once across the entire run().
-     *   Recommended for Pass & Resource Graphs (e.g., render pass scheduling, resource allocation,
-     *   compute passes) where duplicate execution of shared dependencies should be prevented.
-     * - "path": Per-branch active path tracking with backtracking. A node can be visited multiple times
-     *   across different upstream branches while cycle detection is strictly enforced along the active path.
-     *   Recommended for Graphics Command Graphs (e.g., reusable geometry/mesh draw nodes executed under
-     *   multiple shader pipelines or passes like Shadow, Depth, and Color), allowing nodes to act as
-     *   reusable subroutines that inherit caller state.
+     * - "once" (default): Global visited set. Each node executes at most once across the entire run,
+     *   skipping shared downstream nodes reached via multiple paths.
+     * - "path": Per-branch active path tracking with backtracking. Nodes can be visited multiple times
+     *   across distinct upstream branches, while cycle detection is enforced along each active path.
      */
     visitMode?:    "once" | "path";
     /** Called immediately before a node's components are executed. */
@@ -114,12 +110,12 @@ export interface AflowRunResult<TCtx = unknown> {
 // ==================== Aflow =====================
 
 /**
- * Static flow helpers over `Agraph`
+ * Execution flow engine over Agraph.
  *
- * Can be used directly:
+ * Supports static invocations:
  * `Aflow.addNode(graph, options)`
  *
- * Or as wrapper:
+ * Or instance orchestration:
  * `const flow = new Aflow(graph, diag)`
  * `flow.addNode(options)`
  */
@@ -274,7 +270,7 @@ export class Aflow<TCtx = unknown> {
     // ── Links ──────────────────────────────────────────────────────
 
     /**
-     * Add link. `data.enabled = false` skips it during run
+     * Adds a directed link between nodes. Setting `data.enabled = false` skips traversal during run.
      */
     static addLink(graph: Agraph<any, any>, srcId: string, dstId: string, { data = null, id = null }: AflowAddLinkOptions = {}): Aedge | null {
         Aflow.#assertGraph(graph, "addLink");
@@ -346,7 +342,7 @@ export class Aflow<TCtx = unknown> {
     // ── Link Sorting ───────────────────────────────────────────────
 
     /**
-     * In-place sort the outgoing links of a node
+     * Sorts outgoing links of a node in place.
      */
     static sortOutgoingLinks(graph: Agraph<any, any>, nodeId: string, sortFn: EdgeSortFn): void {
         Aflow.#assertGraph(graph, "sortOutgoingLinks");
@@ -520,7 +516,7 @@ export class Aflow<TCtx = unknown> {
                 // --- Edge filtering ---
                 const meta = edge.data as AflowLinkData | null | undefined;
 
-                // Legacy: enabled === false skips the edge
+                // enabled === false skips the edge
                 if (meta?.enabled === false) continue;
 
                 const kind = meta?.kind ?? "pass";
@@ -565,8 +561,6 @@ export class Aflow<TCtx = unknown> {
      * Traverses the flow graph without executing any components.
      * Applies the same edge filtering and visitMode logic as run().
      * Returns the ordered list of nodes that would be visited and any structural issues found.
-     *
-     * Useful for debugging render graphs and unit testing pipeline structure.
      */
     dryRun(
         fromNodeId: string,

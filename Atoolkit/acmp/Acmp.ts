@@ -10,7 +10,7 @@ import type { Adiag } from "../adiag/index.js";
 export class Acmp<TCtx = unknown, TRet = void> {
     /**
      * Executes against the given context.
-     * Record stuff with Adiag
+     * Records diagnostics on failure via diag.
      */
     exec(_ctx: TCtx, _diag?: Adiag): TRet {
         return undefined as unknown as TRet;
@@ -39,7 +39,7 @@ export class AcmpFnWrapper<TCtx = unknown, TRet = void> extends Acmp<TCtx, TRet>
 }
 
 /**
- * Helper to construct an Acmp from a pure function.
+ * Constructs an Acmp from a function.
  */
 export function acmp<TCtx = unknown, TRet = void>(fn: AcmpFn<TCtx, TRet>): Acmp<TCtx, TRet> {
     return new AcmpFnWrapper(fn);

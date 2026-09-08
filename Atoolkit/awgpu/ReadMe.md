@@ -6,7 +6,7 @@ WebGPU resource creation helpers and modular execution components.
 
 ## Core Characteristics
 
-- **Direct WebGPU Access**: Operates directly on buffers, bind groups, pipelines, and passes without scene or material abstractions.
+- **Direct WebGPU Access**: Operates directly on buffers, bind groups, pipelines, and passes.
 - **Diagnostic Logging**: Operations return null and log structured records to `Adiag` on failure instead of throwing unhandled exceptions.
 - **Automatic Buffer Alignment**: Rounds sizes to 4-byte boundaries, auto-unmaps staging buffers, and derives cumulative vertex layout offsets.
 - **Atomic Component Execution**: Pass recording, pipeline binding, and draw commands run as atomic `Acmp` components via `exec(ctx, diag)`.

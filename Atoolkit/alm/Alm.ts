@@ -1046,7 +1046,7 @@ Mat4.perspectiveZO = function(fovy: number, aspect: number, near: number, far: n
 };
 
 /**
- * Legacy OpenGL [-1, 1] clip space perspective projection (default for WebGL).
+ * OpenGL / WebGL [-1, 1] clip space perspective projection.
  */
 Mat4.perspectiveNO = function(fovy: number, aspect: number, near: number, far: number, out: M16 | null = null): M16 {
     out ??= new Float32Array(16);

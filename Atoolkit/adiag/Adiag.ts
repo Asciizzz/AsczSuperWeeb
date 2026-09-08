@@ -71,8 +71,7 @@ export class Adiag {
     findInfos(): AdiagResult[] { return this.results.filter(r => r.type === Adiag.TYPE_INFO); }
 
     /**
-     * Extracts the causal reference chain starting from `result`.
-     * E.g. [highLevelResult, causeResult, ...]
+     * Extracts the causal reference chain starting from `result` in order of causality.
      */
     static getCauseChain(result: AdiagResult | null | undefined): AdiagResult[] {
         const chain: AdiagResult[] = [];

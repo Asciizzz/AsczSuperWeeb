@@ -26,14 +26,14 @@ interface PipelineContext {
     data: number[];
 }
 
-class StepA extends Acmp<PipelineContext> {
+class ComponentA extends Acmp<PipelineContext> {
     override exec(ctx: PipelineContext, diag?: Adiag): void {
         ctx.data.push(10);
-        diag?.ok({ code: "STEP_A_DONE" });
+        diag?.ok({ code: "CMP_A_DONE" });
     }
 }
 
-class StepB extends Acmp<PipelineContext> {
+class ComponentB extends Acmp<PipelineContext> {
     override exec(ctx: PipelineContext): void {
         ctx.data.push(20);
     }
@@ -43,8 +43,8 @@ const diag = new Adiag();
 const graph = new Agraph({ label: "ComputeFlow", diag });
 const flow = new Aflow(graph, diag);
 
-const n1 = flow.addNode({ id: "node1", payload: [new StepA()] })!;
-const n2 = flow.addNode({ id: "node2", payload: [new StepB()] })!;
+const n1 = flow.addNode({ id: "node1", payload: [new ComponentA()] })!;
+const n2 = flow.addNode({ id: "node2", payload: [new ComponentB()] })!;
 flow.addLink("node1", "node2");
 
 const ctx: PipelineContext = { data: [] };
@@ -60,14 +60,14 @@ console.log(ctx.data); // [10, 20]
 `Aflow` handles convergence (such as diamond topologies where multiple parent nodes link to the same child) using two distinct modes:
 
 ```
-              [Root / RenderPass]
-             /                   \
-        (order: 0)            (order: 1)
-            v                     v
-        [Shader A]            [Shader B]
-            \                     /
-             v                   v
-                [DrawMesh Node]
+                    [Root]
+                   /      \
+             (order: 0)  (order: 1)
+                 v          v
+             [Node A]    [Node B]
+                 \          /
+                  v        v
+                   [Target]
 ```
 
 ### `visitMode: "path"`
@@ -75,13 +75,13 @@ Tracks visited nodes along the active branch only, clearing them during backtrac
 
 ```ts
 flow.run("root", {
-    ctx: backend.newCtx(),
+    ctx: myContext,
     visitMode: "path",
 });
 ```
 
 ### `visitMode: "once"` (Default)
-Maintains a global visited set across the run. Converging branches skip nodes visited on earlier paths, preventing duplicate work on pass allocations or resource setups.
+Maintains a global visited set across the run. Converging branches skip nodes visited on earlier paths, preventing duplicate work on shared downstream nodes.
 
 ---
 
@@ -124,15 +124,15 @@ Link behavior is configured via `data`:
 flow.addLink("nodeA", "nodeB", { data: { kind: "pass" } });
 
 // "conditional": Evaluates predicate against context
-flow.addLink("renderPass", "postProcess", {
+flow.addLink("sourceNode", "filteredNode", {
     data: {
         kind: "conditional",
-        when: (ctx: MyCtx) => ctx.enablePostProcessing === true,
+        when: (ctx: MyCtx) => ctx.active === true,
     }
 });
 
 // "skip": Retained in topology but ignored during run()
-flow.addLink("shadowMap", "mainPass", { data: { kind: "skip" } });
+flow.addLink("debugNode", "outputNode", { data: { kind: "skip" } });
 
 // "once": Runs on first call, skipped on subsequent calls
 flow.addLink("root", "initResources", { data: { kind: "once" } });
@@ -153,7 +153,7 @@ flow.addLink("nodeA", "nodeB", { data: { enabled: false } });
 - `dryRun(fromNodeId, options?)`: Simulates traversal without calling component payloads. Accepts optional `ctx` for conditional link evaluation:
   ```ts
   const { visitOrder, issues } = flow.dryRun("root", {
-      ctx: { enablePostProcessing: false },
+      ctx: { active: false },
       visitMode: "path",
   });
   ```

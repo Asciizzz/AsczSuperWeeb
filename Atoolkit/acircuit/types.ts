@@ -16,7 +16,7 @@ export interface Packet<T = any, TData = any> {
 export interface ProcessCtx<TCtx = unknown> {
     /** Optional user context passed through the graph run */
     ctx?: TCtx;
-    /** Unique identifier prefix for this node instance (e.g. "node_${node.id}") */
+    /** Unique identifier prefix for this node instance. */
     varPrefix: string;
     /** Arbitrary user-defined execution metadata */
     meta?: Record<string, unknown>;

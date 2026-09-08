@@ -1418,7 +1418,7 @@ export class Atree {
 
     /**
      * Lowest Common Ancestor of two nodes.
-     * Returns null if no common ancestor exists (e.g. different trees in a forest).
+     * Returns null if no common ancestor exists across disconnected trees.
      */
     static lca<NData, EData>(graph: Agraph<NData, EData>, nodeId1: string, nodeId2: string): Anode<NData> | null {
         const ancestors1 = new Set<string>([nodeId1]);
@@ -1497,7 +1497,6 @@ export class Atree {
 
     /**
      * Pre-order DFS traversal: visits a node before its children (top-down).
-     * Ideal for computing world transforms from parent to child.
      */
     static preOrder<NData>(graph: Agraph<NData, any>, nodeId: string, fn: (node: Anode<NData>) => void): void {
         const node = graph.getNode(nodeId);
@@ -1510,7 +1509,6 @@ export class Atree {
 
     /**
      * Post-order DFS traversal: visits a node after all its children (bottom-up).
-     * Ideal for aggregating values (e.g. bounding boxes) from leaves to root.
      */
     static postOrder<NData>(graph: Agraph<NData, any>, nodeId: string, fn: (node: Anode<NData>) => void): void {
         for (const child of Atree.childrenOf(graph, nodeId)) {

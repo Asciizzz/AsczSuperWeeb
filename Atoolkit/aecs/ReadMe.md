@@ -1,6 +1,6 @@
 # Aecs
 
-Lightweight, allocation-free Entity Component System built on `Acmp`. Stores entity states across sparse sets and provides O(1) component lookups and signature queries without graph or scheduler coupling.
+Lightweight, allocation-free Entity Component System built on `Acmp`. Stores entity states across sparse sets and provides O(1) component lookups and signature queries.
 
 ---
 
@@ -9,7 +9,7 @@ Lightweight, allocation-free Entity Component System built on `Acmp`. Stores ent
 1. **Entity Primitive (`Aent`)**: 32-bit packed integer (20 bits index, 12 bits generation) with zero object allocations, direct array indexing, and automatic tombstoning against stale references.
 2. **Component Storage (`SparseSet`)**: Contiguous dense component arrays mapped through sparse index tables, guaranteeing O(1) `set`, `get`, `has`, and swap-and-pop `remove`.
 3. **Query Engine (`Aquery`)**: Traverses matching entities using smallest component sets as driver loops, evaluating secondary criteria in O(1) time.
-4. **Execution Agnostic**: Operates independently of render loops or schedulers. Components subclass `Acmp`, supporting pure data storage and optional `exec(ctx, diag)` execution.
+4. **Execution Agnostic**: Components subclass `Acmp`, supporting pure data storage and optional `exec(ctx, diag)` execution.
 
 ---
 

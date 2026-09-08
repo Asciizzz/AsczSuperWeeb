@@ -47,7 +47,7 @@ export class Acircuit {
     }
 
     /**
-     * Connect an output socket to an input socket.
+     * Connects an output socket to an input socket.
      * Returns the created Awire instance.
      */
     connect<TData = any>(

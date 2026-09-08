@@ -1,7 +1,7 @@
 /**
  * Universal base socket in an Acircuit computation graph.
- * Pure inheritance base holding the socket name and optional metadata.
- * Subclasses can populate domain-specific data, types, or behaviors.
+ * Holds the socket name and optional metadata.
+ * Subclasses define specialized data, types, or validation constraints.
  */
 export class Asocket {
     readonly name: string;

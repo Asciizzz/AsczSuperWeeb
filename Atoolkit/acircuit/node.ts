@@ -11,7 +11,7 @@ export abstract class Acnode {
     readonly outputs = new Map<string, Asocket>();
 
     /**
-     * Optional user metadata (UI coordinates, color, category, etc.).
+     * Optional metadata associated with the node.
      */
     metadata: Record<string, unknown> = {};
 

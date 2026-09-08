@@ -158,7 +158,7 @@ export function createBuffer(device: GPUDevice, options: CreateBufferOptions): G
 }
 
 /**
- * Convenience helper to allocate a UNIFORM | COPY_DST GPUBuffer.
+ * Allocates a UNIFORM | COPY_DST GPUBuffer.
  */
 export function createUniformBuffer(device: GPUDevice, options: CreateUniformBufferOptions): GPUBuffer | null {
     return createBuffer(device, {
@@ -284,8 +284,7 @@ export function createTexture2D(device: GPUDevice, options: CreateTexture2DOptio
 }
 
 /**
- * Declarative helper that automatically calculates attribute byte offsets, total stride,
- * and builds a standard GPUVertexBufferLayout.
+ * Calculates attribute byte offsets and total stride, returning a GPUVertexBufferLayout.
  */
 export function createVertexLayout(
     attributes: VertexAttributeDescriptor[],

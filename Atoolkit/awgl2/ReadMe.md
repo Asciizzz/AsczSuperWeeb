@@ -6,7 +6,7 @@ WebGL2 resource utilities and modular execution components.
 
 ## Core Characteristics
 
-- **Direct WebGL2 Access**: Direct interaction with WebGL2 programs, VAOs, textures, and framebuffers without material abstractions.
+- **Direct WebGL2 Access**: Direct interaction with WebGL2 programs, VAOs, textures, and framebuffers.
 - **Diagnostic Logging**: Failures return null and log structured records to `Adiag`.
 - **State-Preserving Context**: Tracks bound programs, active VAOs, and framebuffers on `Awgl2Ctx`.
 - **Atomic Component Execution**: Passes, shaders, uniforms, and draw calls execute as atomic `Acmp` components via `exec(ctx, diag)`.
