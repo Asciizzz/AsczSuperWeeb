@@ -1,4 +1,4 @@
-import { Asocket, type Awire } from "../../Atoolkit/adataflow/index.js";
+import { Asocket, type Awire } from "../../Atoolkit/acircuit/index.js";
 import type { GpuTexture } from "../gpu.js";
 
 export type SocketType = "float" | "vec2" | "vec3" | "vec4" | "texture2d";

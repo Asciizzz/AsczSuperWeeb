@@ -1,4 +1,4 @@
-import { Adataflow } from "../../Atoolkit/adataflow/index.js";
+import { Acircuit } from "../../Atoolkit/acircuit/index.js";
 import { Adiag } from "../../Atoolkit/adiag/index.js";
 import {
     ShaderNode,
@@ -38,10 +38,10 @@ export type ShaderCompiler<TOptions = any> = (
 
 /**
  * Directed acyclic graph of shader micro-nodes connected via typed sockets.
- * Extends the generic Adataflow computation graph, purely representing shader AST topology
+ * Extends the generic Acircuit computation graph, purely representing shader AST topology
  * and uniform buffer memory layouts without binding to any specific graphics API or shading language.
  */
-export class ShaderGraph extends Adataflow {
+export class ShaderGraph extends Acircuit {
     static defaultCompiler?: ShaderCompiler;
 
     readonly name: string;

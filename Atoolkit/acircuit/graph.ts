@@ -1,4 +1,4 @@
-import { Adfnode } from "./node.js";
+import { Acnode } from "./node.js";
 import type { Awire } from "./wire.js";
 import type {
     Packet,
@@ -7,13 +7,13 @@ import type {
     ProcessCtx,
 } from "./types.js";
 
-export interface AdataflowOptions {
+export interface AcircuitOptions {
     label?: string;
 }
 
-export class Adataflow {
+export class Acircuit {    
     readonly label: string;
-    readonly nodes = new Map<string, Adfnode>();
+    readonly nodes = new Map<string, Acnode>();
 
     /** Inward wires: "inNodeId:inSocket" -> Awire[] */
     private readonly _inWires = new Map<string, Awire[]>();
@@ -21,11 +21,11 @@ export class Adataflow {
     /** Outward wires: "outNodeId:outSocket" -> Awire[] */
     private readonly _outWires = new Map<string, Awire[]>();
 
-    constructor(options: AdataflowOptions = {}) {
-        this.label = options.label ?? "Adataflow";
+    constructor(options: AcircuitOptions = {}) {
+        this.label = options.label ?? "Acircuit";
     }
 
-    addNode(node: Adfnode): this {
+    addNode(node: Acnode): this {
         if (this.nodes.has(node.id)) return this;
         this.nodes.set(node.id, node);
         return this;
@@ -35,11 +35,11 @@ export class Adataflow {
         return this.nodes.has(id);
     }
 
-    getNode<T extends Adfnode = Adfnode>(id: string): T | undefined {
+    getNode<T extends Acnode = Acnode>(id: string): T | undefined {
         return this.nodes.get(id) as T | undefined;
     }
 
-    removeNode(nodeOrId: Adfnode | string): this {
+    removeNode(nodeOrId: Acnode | string): this {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
         this.disconnectAll(id);
         this.nodes.delete(id);
@@ -51,29 +51,29 @@ export class Adataflow {
      * Returns the created Awire instance.
      */
     connect<TData = any>(
-        outNodeOrId: Adfnode | string,
+        outNodeOrId: Acnode | string,
         outSocketName: string,
-        inNodeOrId: Adfnode | string,
+        inNodeOrId: Acnode | string,
         inSocketName: string,
         data?: TData
     ): Awire<TData> {
         const outNode = typeof outNodeOrId === "string" ? this.getNode(outNodeOrId) : outNodeOrId;
         const inNode = typeof inNodeOrId === "string" ? this.getNode(inNodeOrId) : inNodeOrId;
 
-        if (!outNode) throw new Error(`[Adataflow] Output node "${String(outNodeOrId)}" not found in graph.`);
-        if (!inNode) throw new Error(`[Adataflow] Input node "${String(inNodeOrId)}" not found in graph.`);
+        if (!outNode) throw new Error(`[Acircuit] Output node "${String(outNodeOrId)}" not found in graph.`);
+        if (!inNode) throw new Error(`[Acircuit] Input node "${String(inNodeOrId)}" not found in graph.`);
 
         if (!this.hasNode(outNode.id)) this.addNode(outNode);
         if (!this.hasNode(inNode.id)) this.addNode(inNode);
 
         const outSocketObj = outNode.getOutput(outSocketName);
-        if (!outSocketObj) throw new Error(`[Adataflow] Node "${outNode.id}" has no output socket named "${outSocketName}".`);
+        if (!outSocketObj) throw new Error(`[Acircuit] Node "${outNode.id}" has no output socket named "${outSocketName}".`);
 
         const inSocketObj = inNode.getInput(inSocketName);
-        if (!inSocketObj) throw new Error(`[Adataflow] Node "${inNode.id}" has no input socket named "${inSocketName}".`);
+        if (!inSocketObj) throw new Error(`[Acircuit] Node "${inNode.id}" has no input socket named "${inSocketName}".`);
 
         if (inNode.canConnectInput && !inNode.canConnectInput(inSocketName, outNode, outSocketName, data)) {
-            throw new Error(`[Adataflow] Connection rejected by node "${inNode.id}" on input socket "${inSocketName}".`);
+            throw new Error(`[Acircuit] Connection rejected by node "${inNode.id}" on input socket "${inSocketName}".`);
         }
 
         const allowMultiple = inNode.allowMultipleInput ? inNode.allowMultipleInput(inSocketName) : false;
@@ -111,7 +111,7 @@ export class Adataflow {
     /**
      * Disconnects a specific Awire, or all wires on a given input socket.
      */
-    disconnect(wireOrNodeId: Awire | Adfnode | string, inSocketName?: string): boolean {
+    disconnect(wireOrNodeId: Awire | Acnode | string, inSocketName?: string): boolean {
         if (typeof wireOrNodeId === "object" && "outNodeId" in wireOrNodeId) {
             const wire = wireOrNodeId as Awire;
             let removed = false;
@@ -160,7 +160,7 @@ export class Adataflow {
         return this._inWires.delete(inKey);
     }
 
-    disconnectAll(nodeOrId: Adfnode | string): this {
+    disconnectAll(nodeOrId: Acnode | string): this {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
 
         for (const [inKey, wires] of Array.from(this._inWires.entries())) {
@@ -196,13 +196,13 @@ export class Adataflow {
         return this;
     }
 
-    getIncomingWire(nodeOrId: Adfnode | string, socketName: string): Awire | undefined {
+    getIncomingWire(nodeOrId: Acnode | string, socketName: string): Awire | undefined {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
         const wires = this._inWires.get(`${id}:${socketName}`);
         return wires && wires.length > 0 ? wires[0] : undefined;
     }
 
-    getIncomingWires(nodeOrId: Adfnode | string, socketName?: string): Awire[] {
+    getIncomingWires(nodeOrId: Acnode | string, socketName?: string): Awire[] {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
         if (socketName) {
             return this._inWires.get(`${id}:${socketName}`) ?? [];
@@ -216,7 +216,7 @@ export class Adataflow {
         return result;
     }
 
-    getOutgoingWires(nodeOrId: Adfnode | string, socketName?: string): Awire[] {
+    getOutgoingWires(nodeOrId: Acnode | string, socketName?: string): Awire[] {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
         if (socketName) {
             return this._outWires.get(`${id}:${socketName}`) ?? [];
@@ -238,7 +238,7 @@ export class Adataflow {
         return result;
     }
 
-    topoSort<T extends Adfnode = Adfnode>(): T[] {
+    topoSort<T extends Acnode = Acnode>(): T[] {
         const inDeps = new Map<string, Set<string>>();
         const outDeps = new Map<string, Set<string>>();
 
@@ -261,7 +261,7 @@ export class Adataflow {
             if (deps.size === 0) readyQueue.push(nodeId);
         }
 
-        const sorted: Adfnode[] = [];
+        const sorted: Acnode[] = [];
         while (readyQueue.length > 0) {
             const currentId = readyQueue.shift()!;
             const node = this.nodes.get(currentId);
@@ -275,15 +275,15 @@ export class Adataflow {
         }
 
         if (sorted.length !== this.nodes.size) {
-            throw new Error(`[Adataflow] Cyclic dependency detected in graph "${this.label}".`);
+            throw new Error(`[Acircuit] Cyclic dependency detected in graph "${this.label}".`);
         }
 
         return sorted as T[];
     }
 
     run<TCtx = unknown>(
-        options: RunOptions<TCtx, Adfnode> = {}
-    ): RunResult<Adfnode> {
+        options: RunOptions<TCtx, Acnode> = {}
+    ): RunResult<Acnode> {
         const sorted = this.topoSort();
         const nodeOutputs = new Map<string, Record<string, any>>();
         const errors: Array<{ nodeId: string; error: unknown }> = [];
@@ -358,8 +358,10 @@ export class Adataflow {
     }
 
     process<TCtx = unknown>(
-        options: RunOptions<TCtx, Adfnode> = {}
-    ): RunResult<Adfnode> {
+        options: RunOptions<TCtx, Acnode> = {}
+    ): RunResult<Acnode> {
         return this.run(options);
     }
 }
+
+export { Acircuit as Adataflow, type AcircuitOptions as AdataflowOptions };

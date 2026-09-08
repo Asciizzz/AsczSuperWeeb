@@ -1,5 +1,5 @@
 /**
- * Universal base socket in an Adataflow computation graph.
+ * Universal base socket in an Acircuit computation graph.
  * Pure inheritance base holding the socket name and optional metadata.
  * Subclasses can populate domain-specific data, types, or behaviors.
  */

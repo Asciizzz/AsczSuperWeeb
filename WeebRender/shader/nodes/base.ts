@@ -1,4 +1,4 @@
-import { Adfnode, Asocket } from "../../../Atoolkit/adataflow/index.js";
+import { Acnode, Asocket } from "../../../Atoolkit/acircuit/index.js";
 import { ShaderSocket, type SocketType } from "../types.js";
 
 export type NodeCategory = "input" | "math" | "color" | "shading" | "output";
@@ -15,7 +15,7 @@ export interface ShaderNodeMetadata {
  * Note: ShaderNode does NOT hold GPU uniform parameters directly. Parameter-providing
  * nodes implement ShaderParamProvider to isolate GPU memory layout from computation.
  */
-export abstract class ShaderNode extends Adfnode {
+export abstract class ShaderNode extends Acnode {
     displayName: string;
     category: NodeCategory;
 
@@ -41,7 +41,7 @@ export abstract class ShaderNode extends Adfnode {
 
     override canConnectInput(
         inSocketName: string,
-        outNode: Adfnode,
+        outNode: Acnode,
         outSocketName: string
     ): boolean {
         const inSocket = this.getInput(inSocketName) as ShaderSocket | undefined;

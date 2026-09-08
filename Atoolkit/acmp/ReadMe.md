@@ -8,8 +8,6 @@ Isolated execution unit receiving a mutable context (`ctx`) and optional diagnos
 
 ## Architecture
 
-Components encapsulate operations against domain-specific contexts (GPU command recording, simulation updates, state queries, value calculations).
-
 - **Execution Contract**: `exec(ctx, diag): TRet` mutating `ctx` directly or returning typed values.
 - **Diagnostics**: Reports errors, warnings, and telemetry through `diag`.
 - **Composability**: Invocable directly, stored in arbitrary structures, or composed by orchestrators.
@@ -41,7 +39,7 @@ export class RaycastQuery extends Acmp<PhysicsCtx, HitResult | null> {
 ```
 
 ### `acmp(fn)`
-Constructs an `Acmp` instance from an inline function. Infers `TRet` automatically:
+Constructs `Acmp` instance from inline function. Infers `TRet` automatically:
 
 ```ts
 import { acmp } from "Atoolkit/acmp";
@@ -56,7 +54,7 @@ const bounds = computeBounds.exec(meshCtx); // Typed as BoundingBox
 
 ## Error Handling & Diagnostics
 
-Components do not return control flow signals or throw unhandled exceptions. When an operation encounters a failure, it records an error on `diag`:
+Components do not return control flow signals or throw unhandled exceptions. Records error on `diag` upon failure:
 
 ```ts
 override exec(ctx: MyCtx, diag?: Adiag): void {

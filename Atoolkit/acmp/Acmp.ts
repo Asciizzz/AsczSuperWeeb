@@ -3,14 +3,14 @@ import type { Adiag } from "../adiag/index.js";
 /**
  * Universal component primitive.
  *
- * An Acmp represents an atomic, isolated unit of execution.
- * It receives a mutable context (`ctx`) and an optional diagnostic
+ * Represents an atomic, isolated unit of execution.
+ * Receives a mutable context (`ctx`) and an optional diagnostic
  * collector (`diag`), returning an optional typed result (`TRet`, defaults to `void`).
  */
 export class Acmp<TCtx = unknown, TRet = void> {
     /**
-     * Executes the component against the given context.
-     * Errors, warnings, and telemetry should be recorded on diag.
+     * Executes against the given context.
+     * Record stuff with Adiag
      */
     exec(_ctx: TCtx, _diag?: Adiag): TRet {
         return undefined as unknown as TRet;

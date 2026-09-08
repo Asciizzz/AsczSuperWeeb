@@ -2,9 +2,9 @@ import { Asocket } from "./socket.js";
 import type { ProcessCtx } from "./types.js";
 
 /**
- * Computational unit in an Adataflow graph with input and output sockets.
+ * Computational unit in an Acircuit computation graph with input and output sockets.
  */
-export abstract class Adfnode {
+export abstract class Acnode {
     readonly id: string;
     readonly name: string;
     readonly inputs = new Map<string, Asocket>();
@@ -63,7 +63,7 @@ export abstract class Adfnode {
      */
     canConnectInput(
         inSocketName: string,
-        outNode: Adfnode,
+        outNode: Acnode,
         outSocketName: string,
         data?: any
     ): boolean {
@@ -71,7 +71,7 @@ export abstract class Adfnode {
     }
 
     /**
-     * Primary dataflow processing method.
+     * Primary circuit processing method.
      * Receives incoming transmission packets (value + wire) and execution context.
      * Returns an object mapping output socket names to computed values.
      */
@@ -80,3 +80,5 @@ export abstract class Adfnode {
         ctx?: ProcessCtx<any>
     ): Record<string, any> | void;
 }
+
+export { Acnode as AcircuitNode };

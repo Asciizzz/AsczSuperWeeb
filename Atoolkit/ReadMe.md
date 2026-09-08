@@ -12,7 +12,7 @@ A pretty massive TypeScript toolkit for various stuff.
 | **[`Atoolkit/acmp`](./acmp/ReadMe.md)** | Atomic execution component primitive (`exec(ctx, diag): void`) operating against mutable contexts | [ReadMe](./acmp/ReadMe.md) |
 | **[`Atoolkit/aecs`](./aecs/ReadMe.md)** | Allocation-free Entity Component System built on `Acmp` with sparse sets and O(1) signature queries | [ReadMe](./aecs/ReadMe.md) |
 | **[`Atoolkit/agraph`](./agraph/ReadMe.md)** | Pure directed graph structure with Kahn's topological sort, node/edge extraction, and DAG/Tree validation | [ReadMe](./agraph/ReadMe.md) |
-| **[`Atoolkit/adataflow`](./adataflow/ReadMe.md)** | Standalone dataflow computation graph with extensible `Asocket`s, direct wire indexing, and topological execution | [ReadMe](./adataflow/ReadMe.md) |
+| **[`Atoolkit/acircuit`](./acircuit/ReadMe.md)** | Standalone socket-based computation circuit with extensible `Asocket`s, direct wire indexing, and topological execution | [ReadMe](./acircuit/ReadMe.md) |
 | **[`Atoolkit/aflow`](./aflow/ReadMe.md)** | DFS execution engine orchestrating `Acmp` arrays across `Agraph` nodes with deterministic edge ordering and branch reuse | [ReadMe](./aflow/ReadMe.md) |
 | **[`Atoolkit/awgpu`](./awgpu/ReadMe.md)** | WebGPU pass steps (`RenderPass`, `UsePipeline`, `DrawIndexed`) and buffer/texture/layout resource helpers | [ReadMe](./awgpu/ReadMe.md) |
 | **[`Atoolkit/awgl2`](./awgl2/ReadMe.md)** | WebGL2 pass steps (`RenderPass`, `UseProgram`, `SetUniforms`) and buffer/program/VAO helpers | [ReadMe](./awgl2/ReadMe.md) |
