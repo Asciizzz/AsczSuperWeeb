@@ -30,7 +30,7 @@ AsczSuperWeeb/
 └── WeebRender/
     ├── camera.ts      # Projection and view camera abstractions
     ├── loader/        # Asynchronous binary glTF/GLB streaming asset parser
-    ├── material.ts    # Material properties and uniform parameter descriptors
+    ├── shadercmp.ts   # Shader component and uniform parameter descriptors
     ├── mesh.ts        # Vertex buffers, submesh ranges, and index topology
     ├── renderer.ts    # Decoupled WebGPU frame renderer and draw call scheduler
     ├── shader/        # Node-based Shader Graph compiler and WGSL generator

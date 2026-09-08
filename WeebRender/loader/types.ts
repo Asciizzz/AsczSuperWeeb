@@ -1,7 +1,7 @@
 import type { Mesh } from "../mesh.js";
 import type { Skeleton } from "../skeleton.js";
 import type { Texture } from "../texture.js";
-import type { MaterialCmp } from "../material.js";
+import type { ShaderCmp } from "../shadercmp.js";
 import type { GpuMesh, GpuTexture } from "../gpu.js";
 
 export interface LoadedMaterial {
@@ -19,7 +19,7 @@ export interface LoadedModel {
     gMesh?: GpuMesh;
     skeleton?: Skeleton;
     materials: LoadedMaterial[];
-    materialCmp?: MaterialCmp;
+    shaderCmp?: ShaderCmp;
 }
 
 export interface GlbHeader {

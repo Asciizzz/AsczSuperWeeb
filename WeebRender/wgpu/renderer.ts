@@ -17,7 +17,7 @@ import { Texture } from "../texture.js";
 import { TransformCmp } from "../transform.js";
 import { CameraCmp } from "../camera.js";
 import { SkinCmp } from "../skeleton.js";
-import { MaterialCmp, type MaterialParamRecord } from "../material.js";
+import { ShaderCmp, type ShaderParamRecord } from "../shadercmp.js";
 import { ShaderParamsCmp } from "../shader/params.js";
 import { ShaderCircuit } from "../shader/circuit.js";
 import { ColorNode } from "../shader/nodes/color.js";
@@ -536,7 +536,7 @@ export class WgpuRenderer {
      */
     private getOrCreateShaderBindGroup(
         shader: GShader,
-        params: MaterialParamRecord | ShaderParamsCmp | null | undefined,
+        params: ShaderParamRecord | ShaderParamsCmp | null | undefined,
         slot: number
     ): GPUBindGroup {
         const device = this.backend!.device!;
@@ -651,8 +651,8 @@ export class WgpuRenderer {
                 worldMatrix = transform.worldMatrix;
             }
 
-            // Resolve Material Component
-            const materialCmp = ecs.get(entity, MaterialCmp);
+            // Resolve Shader Component
+            const shaderCmp = ecs.get(entity, ShaderCmp);
 
             // Resolve Skin Component directly on the entity
             const skinCmp = ecs.get(entity, SkinCmp);
@@ -670,9 +670,10 @@ export class WgpuRenderer {
                 const submesh = submeshes[sIdx];
                 if (submesh.visible === false) continue;
 
-                // Shader resolution: MaterialCmp slot sIdx -> MaterialCmp slot 0 -> defaultShader
-                const shader = (materialCmp?.shaders[sIdx]
-                    ?? materialCmp?.shaders[0]
+                // Shader resolution: ShaderCmp slot (submesh.shaderSlot ?? sIdx) -> ShaderCmp slot 0 -> defaultShader
+                const slotIndex = submesh.shaderSlot ?? sIdx;
+                const shader = (shaderCmp?.shaders[slotIndex]
+                    ?? shaderCmp?.shaders[0]
                     ?? this.defaultShader) as GShader | null | undefined;
                 if (!shader) continue;
 
@@ -706,9 +707,9 @@ export class WgpuRenderer {
                 );
                 pass.setBindGroup(1, objBindGroup);
 
-                // Material & Texture Bind Group (Slot sIdx params -> Slot 0 params)
-                const effectiveParams = materialCmp?.params[sIdx]
-                    ?? materialCmp?.params[0]
+                // Shader & Texture Bind Group (Slot slotIndex params -> Slot 0 params)
+                const effectiveParams = shaderCmp?.params[slotIndex]
+                    ?? shaderCmp?.params[0]
                     ?? undefined;
 
                 const matBindGroup = this.getOrCreateShaderBindGroup(

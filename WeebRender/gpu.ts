@@ -3,7 +3,7 @@ import type { Texture } from "./texture.js";
 import type { ShaderCircuit } from "./shader/circuit.js";
 import type { TextureSampleNode } from "./shader/nodes.js";
 import type { ShaderParamLayout } from "./shader/types.js";
-import type { MaterialParamRecord } from "./material.js";
+import type { ShaderParamRecord } from "./shadercmp.js";
 import { ShaderParamsCmp } from "./shader/params.js";
 
 let nextGpuTextureId = 0;
@@ -107,8 +107,8 @@ export class GpuShader<TBackend = unknown> {
     /**
      * Builds a default parameter values record based on the shader's paramLayout.
      */
-    createDefaultParams(): MaterialParamRecord {
-        const rec: MaterialParamRecord = {};
+    createDefaultParams(): ShaderParamRecord {
+        const rec: ShaderParamRecord = {};
         if (this.paramLayout) {
             for (const [name, u] of this.paramLayout.uniforms) {
                 rec[name] = Array.isArray(u.defaultValue) ? [...u.defaultValue] : u.defaultValue;
@@ -158,7 +158,7 @@ export class GpuShader<TBackend = unknown> {
     /**
      * Creates a ShaderParamsCmp pre-populated with this shader's default parameters and optional overrides.
      */
-    createParamsCmp(overrides?: MaterialParamRecord): ShaderParamsCmp {
+    createParamsCmp(overrides?: ShaderParamRecord): ShaderParamsCmp {
         const values = {
             ...this.createDefaultParams(),
             ...(overrides ?? {}),

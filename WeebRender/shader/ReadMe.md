@@ -126,7 +126,7 @@ export function isShaderParam(node: unknown): node is ShaderParamProvider;
 ```
 
 * **`isParam`**: Flags whether the node declares a mutable uniform buffer entry or texture binding slot.
-* **`paramName`**: Parameter key used for runtime overrides on `MaterialCmp`. Defaults to the node ID if omitted.
+* **`paramName`**: Parameter key used for runtime overrides on `ShaderCmp`. Defaults to the node ID if omitted.
 
 #### ParamVec4Node
 Dedicated uniform parameter node for `vec4` values. Aligned to 16 bytes.
@@ -235,15 +235,15 @@ const defaultRecord = shader.createDefaultParams();
 const paramsCmp = shader.createParamsCmp({ roughness: 0.2 });
 ```
 
-### Material Component Integration
-
-Assign shaders and parameter overrides to entities via `MaterialCmp`:
+### Shader Component Integration
+ 
+Assign shaders and parameter overrides to entities via `ShaderCmp`:
 
 ```typescript
-const material = new MaterialCmp(shader, {
+const shaderCmp = new ShaderCmp(shader, {
     baseColor: [1.0, 0.0, 0.0, 1.0],
 });
 
 // Update parameter at runtime without recompiling shaders
-material.setParam(0, "baseColor", [0.0, 1.0, 0.0, 1.0]);
+shaderCmp.setParam(0, "baseColor", [0.0, 1.0, 0.0, 1.0]);
 ```

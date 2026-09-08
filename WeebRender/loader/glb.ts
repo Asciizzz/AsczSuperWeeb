@@ -3,7 +3,7 @@ import { GMesh } from "../wgpu/wmesh.js";
 import { GTexture } from "../wgpu/wtexture.js";
 import { Skeleton, type Joint, SkinCmp } from "../skeleton.js";
 import { TransformCmp } from "../transform.js";
-import { MaterialCmp } from "../material.js";
+import { ShaderCmp } from "../shadercmp.js";
 import { GShader } from "../wgpu/wshader.js";
 import { Texture } from "../texture.js";
 import { STANDARD_ATTRIBUTES, SKINNED_ATTRIBUTES } from "../extensions/presets.js";
@@ -584,14 +584,14 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
                 }
             }
 
-            const materialCmp = new MaterialCmp(submeshShaders, submeshParams);
+            const shaderCmp = new ShaderCmp(submeshShaders, submeshParams);
 
             models.push({
                 name: modelName,
                 mesh,
                 skeleton,
                 materials,
-                materialCmp,
+                shaderCmp,
             });
         }
     }
@@ -706,13 +706,13 @@ export async function parseGlb(buffer: ArrayBuffer): Promise<LoadedModel[]> {
             }
         }
 
-        const materialCmp = new MaterialCmp(submeshShaders, submeshParams);
+        const shaderCmp = new ShaderCmp(submeshShaders, submeshParams);
 
         models.push({
             name: modelName,
             mesh,
             materials,
-            materialCmp,
+            shaderCmp,
         });
     }
 
@@ -768,9 +768,9 @@ export function spawnLoadedModel(
                 mat.gTexture = GTexture.fromTexture(device, mat.baseTexture);
             }
         }
-        if (model.materialCmp) {
-            for (let sIdx = 0; sIdx < model.materialCmp.params.length; sIdx++) {
-                const params = model.materialCmp.params[sIdx];
+        if (model.shaderCmp) {
+            for (let sIdx = 0; sIdx < model.shaderCmp.params.length; sIdx++) {
+                const params = model.shaderCmp.params[sIdx];
                 const mat = model.materials[sIdx] ?? model.materials[0];
                 if (params && mat?.gTexture) {
                     params.mainTexture = mat.gTexture;
@@ -784,12 +784,12 @@ export function spawnLoadedModel(
     }
 
     const meshCmp = new MeshCmp(model.gMesh);
-    const materialCmp = model.materialCmp ?? new MaterialCmp();
+    const shaderCmp = model.shaderCmp ?? new ShaderCmp();
 
     if (model.skeleton) {
         const skinCmp = new SkinCmp(model.skeleton);
-        return ecs.spawn(transform, meshCmp, skinCmp, materialCmp);
+        return ecs.spawn(transform, meshCmp, skinCmp, shaderCmp);
     }
 
-    return ecs.spawn(transform, meshCmp, materialCmp);
+    return ecs.spawn(transform, meshCmp, shaderCmp);
 }

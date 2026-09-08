@@ -7,8 +7,7 @@ export interface Submesh {
     name: string;
     indexStart: number;
     indexCount: number;
-    materialSlot?: number;
-    rShader?: any;
+    shaderSlot?: number;
     visible?: boolean;
     localAABB?: { min: Float32Array; max: Float32Array };
 }

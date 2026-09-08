@@ -3,7 +3,7 @@ import type { ShaderCircuit } from "../shader/circuit.js";
 import type { TextureSampleNode } from "../shader/nodes.js";
 import type { ShaderParamLayout } from "../shader/types.js";
 import { ShaderParamsCmp } from "../shader/params.js";
-import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
+import type { ShaderParamRecord, ShaderParamValue } from "../shadercmp.js";
 import { compileWgsl, type WgslCompileOptions } from "./wgsl.js";
 
 let gShaderIdCounter = 0;
@@ -272,8 +272,8 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     /**
      * Creates a new parameter record populated with this shader's default uniform and texture values.
      */
-    createDefaultParams(): MaterialParamRecord {
-        const params: MaterialParamRecord = {};
+    createDefaultParams(): ShaderParamRecord {
+        const params: ShaderParamRecord = {};
         if (this.paramLayout) {
             for (const [name, u] of this.paramLayout.uniforms) {
                 params[name] = Array.isArray(u.defaultValue) ? [...u.defaultValue] : u.defaultValue;
@@ -288,7 +288,7 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     /**
      * Creates a ShaderParamsCmp pre-populated with this shader's default parameters and optional overrides.
      */
-    createParamsCmp(overrides?: MaterialParamRecord): ShaderParamsCmp {
+    createParamsCmp(overrides?: ShaderParamRecord): ShaderParamsCmp {
         const params = this.createDefaultParams();
         if (overrides) {
             Object.assign(params, overrides);
@@ -299,7 +299,7 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     /**
      * Retrieves the default value for a single uniform or texture parameter by name.
      */
-    getDefaultParam(name: string): MaterialParamValue | undefined {
+    getDefaultParam(name: string): ShaderParamValue | undefined {
         if (!this.paramLayout) return undefined;
         const u = this.paramLayout.uniforms.get(name);
         if (u) {

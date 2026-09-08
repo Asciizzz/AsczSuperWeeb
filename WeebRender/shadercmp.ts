@@ -1,24 +1,24 @@
 import { Acmp } from "../Atoolkit/acmp/index.js";
 import type { GpuTexture, GpuShader } from "./gpu.js";
 
-export type MaterialParamValue = number | number[] | Float32Array | GpuTexture | null;
-export type MaterialParamRecord = Record<string, MaterialParamValue>;
+export type ShaderParamValue = number | number[] | Float32Array | GpuTexture | null;
+export type ShaderParamRecord = Record<string, ShaderParamValue>;
 
-export interface MaterialSlot {
+export interface ShaderSlot {
     shader?: GpuShader;
-    params?: MaterialParamRecord | null;
+    params?: ShaderParamRecord | null;
 }
 
 /**
  * ECS component holding shader references (GpuShader) and parameter overrides per slot.
  */
-export class MaterialCmp extends Acmp {
+export class ShaderCmp extends Acmp {
     shaders: (GpuShader | null)[];
-    params: (MaterialParamRecord | null)[];
+    params: (ShaderParamRecord | null)[];
 
     constructor(
         shaders: (GpuShader | null)[] | GpuShader = [],
-        params: (MaterialParamRecord | null)[] | MaterialParamRecord = []
+        params: (ShaderParamRecord | null)[] | ShaderParamRecord = []
     ) {
         super();
         if (Array.isArray(shaders)) {
@@ -56,7 +56,7 @@ export class MaterialCmp extends Acmp {
     /**
      * Sets a parameter override value for a slot.
      */
-    setParam(slot: number, paramName: string, value: MaterialParamValue): this {
+    setParam(slot: number, paramName: string, value: ShaderParamValue): this {
         if (!this.params[slot]) {
             this.params[slot] = {};
         }
@@ -67,14 +67,14 @@ export class MaterialCmp extends Acmp {
     /**
      * Gets a parameter override value for a slot.
      */
-    getParam(slot: number, paramName: string): MaterialParamValue | undefined {
+    getParam(slot: number, paramName: string): ShaderParamValue | undefined {
         return this.params[slot]?.[paramName];
     }
 
     /**
      * Sets multiple parameter overrides on a slot.
      */
-    setParams(slot: number, values: MaterialParamRecord): this {
+    setParams(slot: number, values: ShaderParamRecord): this {
         if (!this.params[slot]) {
             this.params[slot] = {};
         }
@@ -85,7 +85,7 @@ export class MaterialCmp extends Acmp {
     /**
      * Gets all parameter overrides for a slot.
      */
-    getParams(slot = 0): MaterialParamRecord | null | undefined {
+    getParams(slot = 0): ShaderParamRecord | null | undefined {
         return this.params[slot];
     }
 }

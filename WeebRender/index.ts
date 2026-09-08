@@ -131,13 +131,13 @@ export {
     type TextureParamDef,
 } from "./shader/index.js";
 
-// Materials & Appearance
+// Shader Component & Parameters
 export {
-    MaterialCmp,
-    type MaterialSlot,
-    type MaterialParamValue,
-    type MaterialParamRecord,
-} from "./material.js";
+    ShaderCmp,
+    type ShaderSlot,
+    type ShaderParamValue,
+    type ShaderParamRecord,
+} from "./shadercmp.js";
 
 // GLB Loader
 export {

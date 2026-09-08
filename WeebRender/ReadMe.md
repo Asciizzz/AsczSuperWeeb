@@ -67,7 +67,7 @@ export class GpuShader<TBackend = unknown> {
     backend: TBackend;
     gpuOwned: boolean;
 
-    createDefaultParams(): MaterialParamRecord;
+    createDefaultParams(): ShaderParamRecord;
     getParamNames(): string[];
     hasParam(name: string): boolean;
 }
@@ -75,7 +75,7 @@ export class GpuShader<TBackend = unknown> {
 
 * **`circuit`**: Pure CPU computation circuit defining node connectivity and math operations.
 * **`paramLayout`**: Memory layout descriptor declaring uniform buffer offsets and texture slot assignments.
-* **`createDefaultParams()`**: Clones default parameter values into a fresh dictionary for material assignment.
+* **`createDefaultParams()`**: Clones default parameter values into a fresh dictionary for shader assignment.
 
 Ergonomic aliases `GMesh`, `GTexture`, `GShader`, and `Shader` map directly to these universal handles.
 
@@ -108,7 +108,7 @@ A renderable 3D entity provides all required render data through co-located comp
 
 - `TransformCmp`: World and local position, rotation, scale, and cached `worldMatrix`.
 - `MeshCmp`: GPU geometry handle (`rMesh: GpuMesh`) and visibility flag.
-- `MaterialCmp`: Shader pipeline references (`shaders: GpuShader[]`) and parameter override records (`params: MaterialParamRecord[]`) per slot.
+- `ShaderCmp`: Shader pipeline references (`shaders: GpuShader[]`) and parameter override records (`params: ShaderParamRecord[]`) per slot.
 - `SkinCmp`: Flattened `jointPalette` matrix array (`Float32Array`) for linear blend skinning. Entities without `SkinCmp` render as static geometry.
 - `ShaderParamsCmp`: Entity parameter values and texture overrides.
 
@@ -139,7 +139,7 @@ import {
     CameraCmp,
     TransformCmp,
     MeshCmp,
-    MaterialCmp,
+    ShaderCmp,
     Mesh,
     ShaderCircuit,
     ColorNode,
@@ -184,7 +184,7 @@ const ecs = new Aecs();
 ecs.spawn(
     new TransformCmp([0, 0, 0]),
     new MeshCmp(gMesh),
-    new MaterialCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
+    new ShaderCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
 );
 
 // 7. Render Frame

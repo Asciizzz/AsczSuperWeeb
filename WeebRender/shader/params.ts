@@ -1,6 +1,6 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import type { GShader } from "../gpu.js";
-import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
+import type { ShaderParamRecord, ShaderParamValue } from "../shadercmp.js";
 
 /**
  * Runtime component holding parameter overrides for an entity's shader.
@@ -8,10 +8,10 @@ import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
  */
 export class ShaderParamsCmp extends Acmp {
     rShader?: GShader;
-    values: MaterialParamRecord;
+    values: ShaderParamRecord;
 
     constructor(
-        values: MaterialParamRecord = {},
+        values: ShaderParamRecord = {},
         rShader?: GShader
     ) {
         super();
@@ -19,13 +19,12 @@ export class ShaderParamsCmp extends Acmp {
         this.rShader = rShader;
     }
 
-    set(paramName: string, value: MaterialParamValue): this {
+    set(paramName: string, value: ShaderParamValue): this {
         this.values[paramName] = value;
         return this;
     }
 
-    get(paramName: string): MaterialParamValue | undefined {
+    get(paramName: string): ShaderParamValue | undefined {
         return this.values[paramName];
     }
 }
-
