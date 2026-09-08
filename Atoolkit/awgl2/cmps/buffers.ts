@@ -35,7 +35,7 @@ function toList<T>(value: T | T[] | undefined | null): T[] {
     return [value];
 }
 
-// ==================== Step =====================
+// ==================== Components =====================
 
 /**
  * Binds a VAO (required) and optional raw VBO/EBO overrides.

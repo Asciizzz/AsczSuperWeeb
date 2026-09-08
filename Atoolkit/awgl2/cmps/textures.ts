@@ -15,7 +15,7 @@ export interface TextureEntry {
     program?:  WebGLProgram;
 }
 
-// ==================== Step =====================
+// ==================== Components =====================
 
 /**
  * Activates texture units, binds WebGLTextures, and optionally wires

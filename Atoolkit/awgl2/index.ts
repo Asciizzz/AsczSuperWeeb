@@ -29,31 +29,31 @@ export type {
 } from "./utils.js";
 
 // Lifecycle
-export { BeginFrame, EndFrame } from "./steps/frame.js";
+export { BeginFrame, EndFrame } from "./cmps/frame.js";
 
 // Passes
-export { RenderPass, EndPass } from "./steps/pass.js";
-export type { RenderPassData, ScissorRect } from "./steps/pass.js";
+export { RenderPass, EndPass } from "./cmps/pass.js";
+export type { RenderPassData, ScissorRect } from "./cmps/pass.js";
 
 // Pipeline
-export { UseProgram } from "./steps/program.js";
+export { UseProgram } from "./cmps/program.js";
 
 // Buffers
-export { SetBuffers } from "./steps/buffers.js";
+export { SetBuffers } from "./cmps/buffers.js";
 export type {
     VertexBufferEntry,
     IndexBufferEntry,
     SetBuffersData,
-} from "./steps/buffers.js";
+} from "./cmps/buffers.js";
 
 // Textures
-export { SetTextures } from "./steps/textures.js";
-export type { TextureEntry } from "./steps/textures.js";
+export { SetTextures } from "./cmps/textures.js";
+export type { TextureEntry } from "./cmps/textures.js";
 
 // Uniforms
-export { SetUniforms } from "./steps/uniforms.js";
-export type { UniformEntry, UniformType } from "./steps/uniforms.js";
+export { SetUniforms } from "./cmps/uniforms.js";
+export type { UniformEntry, UniformType } from "./cmps/uniforms.js";
 
 // Draw
-export { Draw, DrawIndexed } from "./steps/draw.js";
-export type { DrawData, DrawIndexedData } from "./steps/draw.js";
+export { Draw, DrawIndexed } from "./cmps/draw.js";
+export type { DrawData, DrawIndexedData } from "./cmps/draw.js";

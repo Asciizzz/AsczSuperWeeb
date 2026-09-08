@@ -15,7 +15,7 @@ export interface ComputePassData {
     timestampWrites?: GPUComputePassTimestampWrites;
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Begins a render pass for drawing operations.

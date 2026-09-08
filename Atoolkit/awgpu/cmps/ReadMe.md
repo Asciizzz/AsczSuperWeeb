@@ -17,7 +17,7 @@ cmp.exec(ctx, diag);
 
 ---
 
-## 1. Frame Lifecycle Steps
+## 1. Frame Lifecycle Components
 
 ### `BeginFrame`
 ```ts
@@ -33,7 +33,7 @@ new EndFrame()
 
 ---
 
-## 2. Pass Steps
+## 2. Pass Components
 
 ### `RenderPass`
 ```ts
@@ -67,7 +67,7 @@ new EndPass()
 
 ---
 
-## 3. Pipeline & Binding Steps
+## 3. Pipeline & Binding Components
 
 ### `UsePipeline`
 ```ts
@@ -92,7 +92,7 @@ interface BindGroupEntry {
 
 ---
 
-## 4. Buffer Steps
+## 4. Buffer Components
 
 ### `SetBuffers`
 ```ts
@@ -197,9 +197,9 @@ new DispatchIndirect(data: DispatchIndirectData)
 
 ---
 
-## 7. Memory Copy Steps
+## 7. Memory Copy Components
 
-| Step Class | Constructor | Command |
+| Component Class | Constructor | Command |
 | :--- | :--- | :--- |
 | `CopyBufferToBuffer` | `(source, sourceOffset, destination, destinationOffset, size)` | `ctx.encoder.copyBufferToBuffer(...)` |
 | `CopyBufferToTexture` | `(source, destination, copySize)` | `ctx.encoder.copyBufferToTexture(...)` |

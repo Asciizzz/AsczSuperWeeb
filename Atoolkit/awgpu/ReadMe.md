@@ -9,7 +9,7 @@ WebGPU resource creation helpers and modular execution components.
 - **Direct WebGPU Access**: Operates directly on buffers, bind groups, pipelines, and passes without scene or material abstractions.
 - **Diagnostic Logging**: Operations return null and log structured records to `Adiag` on failure instead of throwing unhandled exceptions.
 - **Automatic Buffer Alignment**: Rounds sizes to 4-byte boundaries, auto-unmaps staging buffers, and derives cumulative vertex layout offsets.
-- **Atomic Step Execution**: Pass recording, pipeline binding, and draw commands run as atomic `Acmp` steps via `exec(ctx, diag)`.
+- **Atomic Component Execution**: Pass recording, pipeline binding, and draw commands run as atomic `Acmp` components via `exec(ctx, diag)`.
 
 ---
 
@@ -184,7 +184,7 @@ const layout = createVertexLayout([
 ## Context & Backend
 
 ### `AwgpuCtx`
-Mutable object created per frame by `backend.newCtx()` and passed through every step:
+Mutable object created per frame by `backend.newCtx()` and passed through every component:
 
 ```ts
 interface AwgpuCtx {
@@ -224,9 +224,9 @@ Handles adapter and device requests, canvas configuration, and frame context all
 
 ---
 
-## Step Components
+## Execution Components
 
-Detailed signatures for step classes are documented in **[`steps/ReadMe.md`](./steps/ReadMe.md)**:
+Detailed signatures for component classes are documented in **[`cmps/ReadMe.md`](./cmps/ReadMe.md)**:
 
 - **Lifecycle**: `BeginFrame`, `EndFrame`
 - **Passes**: `RenderPass`, `ComputePass`, `EndPass`

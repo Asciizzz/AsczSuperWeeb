@@ -32,7 +32,7 @@ export interface DrawIndirectData {
     offset?: number | ((ctx: AwgpuCtx) => number);
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Issues a draw call without an index buffer.

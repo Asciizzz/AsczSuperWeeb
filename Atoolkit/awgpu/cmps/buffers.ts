@@ -41,7 +41,7 @@ export interface SetBuffersData {
     indirect?: IndirectBufferEntry | ((ctx: AwgpuCtx) => IndirectBufferEntry);
 }
 
-// ==================== Step =====================
+// ==================== Components =====================
 
 /**
  * Sets vertex, index, and indirect buffers on the active pass.

@@ -54,6 +54,7 @@ export {
     WgpuShader,
     type WgpuShaderPayload,
     WgpuRenderer,
+    SceneDrawCmp,
     SceneDrawStep,
     BeginFrame,
     EndFrame,

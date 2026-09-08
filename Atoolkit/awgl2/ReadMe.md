@@ -9,7 +9,7 @@ WebGL2 resource utilities and modular execution components.
 - **Direct WebGL2 Access**: Direct interaction with WebGL2 programs, VAOs, textures, and framebuffers without material abstractions.
 - **Diagnostic Logging**: Failures return null and log structured records to `Adiag`.
 - **State-Preserving Context**: Tracks bound programs, active VAOs, and framebuffers on `Awgl2Ctx`.
-- **Atomic Step Execution**: Passes, shaders, uniforms, and draw calls execute as atomic `Acmp` steps via `exec(ctx, diag)`.
+- **Atomic Component Execution**: Passes, shaders, uniforms, and draw calls execute as atomic `Acmp` components via `exec(ctx, diag)`.
 
 ---
 
@@ -141,7 +141,7 @@ Creates `WebGLFramebuffer`, attaches color textures and depth renderbuffers, and
 ## Context & Backend
 
 ### `Awgl2Ctx`
-Context object created per frame by `backend.newCtx()` and passed through every step:
+Context object created per frame by `backend.newCtx()` and passed through every component:
 
 ```ts
 interface Awgl2Ctx {
@@ -174,9 +174,9 @@ Initializes WebGL2 on the target canvas and manages resizing:
 
 ---
 
-## Step Components
+## Execution Components
 
-Detailed signatures for step classes are documented in **[`steps/ReadMe.md`](./steps/ReadMe.md)**:
+Detailed signatures for component classes are documented in **[`cmps/ReadMe.md`](./cmps/ReadMe.md)**:
 
 - **Lifecycle**: `BeginFrame`, `EndFrame`
 - **Passes**: `RenderPass`, `EndPass`

@@ -2,7 +2,7 @@
 
 3D rendering engine built on the `Atoolkit` library suite:
 - `Aecs`: Sparse-set Entity Component System for state queries.
-- `Acmp`: Composable execution step payloads.
+- `Acmp`: Composable execution component payloads.
 - `Aflow`: Directed execution graph for pass scheduling.
 - `Alm`: Linear algebra matrices and quaternions.
 - `Acircuit`: Typed socket computation graph driving shader graph topology.

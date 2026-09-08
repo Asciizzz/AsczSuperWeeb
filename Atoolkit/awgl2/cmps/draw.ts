@@ -30,7 +30,7 @@ function uint(value: unknown, fallback = 0): number {
     return Math.max(0, Number(value ?? fallback) | 0);
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Non-indexed vertex drawing via gl.drawArrays / gl.drawArraysInstanced.

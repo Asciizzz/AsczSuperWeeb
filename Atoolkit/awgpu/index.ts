@@ -32,33 +32,33 @@ export type {
 } from "./utils.js";
 
 // Lifecycle
-export { BeginFrame, EndFrame } from "./steps/frame.js";
+export { BeginFrame, EndFrame } from "./cmps/frame.js";
 
 // Passes
-export { RenderPass, ComputePass, EndPass } from "./steps/pass.js";
-export type { RenderPassData, ComputePassData } from "./steps/pass.js";
+export { RenderPass, ComputePass, EndPass } from "./cmps/pass.js";
+export type { RenderPassData, ComputePassData } from "./cmps/pass.js";
 
 // Pipeline & Binding
-export { UsePipeline }   from "./steps/pipeline.js";
-export { SetBindGroups } from "./steps/bind.js";
-export type { BindGroupEntry } from "./steps/bind.js";
+export { UsePipeline }   from "./cmps/pipeline.js";
+export { SetBindGroups } from "./cmps/bind.js";
+export type { BindGroupEntry } from "./cmps/bind.js";
 
 // Buffers
-export { SetBuffers } from "./steps/buffers.js";
+export { SetBuffers } from "./cmps/buffers.js";
 export type {
     VertexBufferEntry,
     IndexBufferEntry,
     IndirectBufferEntry,
     SetBuffersData,
-} from "./steps/buffers.js";
+} from "./cmps/buffers.js";
 
 // Draw
-export { Draw, DrawIndexed, DrawIndirect, DrawIndexedIndirect } from "./steps/draw.js";
-export type { DrawData, DrawIndexedData, DrawIndirectData }     from "./steps/draw.js";
+export { Draw, DrawIndexed, DrawIndirect, DrawIndexedIndirect } from "./cmps/draw.js";
+export type { DrawData, DrawIndexedData, DrawIndirectData }     from "./cmps/draw.js";
 
 // Compute
-export { Dispatch, DispatchIndirect } from "./steps/dispatch.js";
-export type { DispatchData, DispatchIndirectData } from "./steps/dispatch.js";
+export { Dispatch, DispatchIndirect } from "./cmps/dispatch.js";
+export type { DispatchData, DispatchIndirectData } from "./cmps/dispatch.js";
 
 // Memory copies
 export {
@@ -66,10 +66,10 @@ export {
     CopyBufferToTexture,
     CopyTextureToBuffer,
     CopyTextureToTexture,
-} from "./steps/copy.js";
+} from "./cmps/copy.js";
 export type {
     CopyBufferToBufferData,
     CopyBufferToTextureData,
     CopyTextureToBufferData,
     CopyTextureToTextureData,
-} from "./steps/copy.js";
+} from "./cmps/copy.js";

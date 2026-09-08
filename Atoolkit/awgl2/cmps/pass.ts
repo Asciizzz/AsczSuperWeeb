@@ -30,14 +30,14 @@ function toNumber(value: unknown, fallback = 0): number {
     return Number.isFinite(n) ? n : fallback;
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Binds a framebuffer (null = default), sets the viewport, and clears
  * color/depth based on options.
  *
  * WebGL2 has no pass object: pass is just the currently bound framebuffer.
- * `passKind` is stored on ctx so downstream steps can guard themselves.
+ * `passKind` is stored on ctx so downstream components can guard themselves.
  */
 export class RenderPass extends Acmp<Awgl2Ctx> {
     readonly data: RenderPassData;

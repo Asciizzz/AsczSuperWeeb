@@ -26,7 +26,7 @@ import { WgpuMesh, GMesh } from "./wmesh.js";
 import { WgpuTexture, GTexture } from "./wtexture.js";
 import { WgpuShader, GShader } from "./wshader.js";
 
-// Re-export frame and pass steps for external flow composition
+// Re-export frame and pass components for external flow composition
 export {
     BeginFrame,
     EndFrame,
@@ -37,13 +37,13 @@ export {
     type AwgpuCtx,
 };
 
-// ==================== Scene Draw Acmp Step ====================
+// ==================== Scene Draw Acmp Component ====================
 
 /**
- * Acmp Step that populates the active RenderPass with draw instructions
+ * Acmp component that populates the active RenderPass with draw instructions
  * compiled from the ECS query of entities with MeshCmp (holding GMesh).
  */
-export class SceneDrawStep extends Acmp<AwgpuCtx> {
+export class SceneDrawCmp extends Acmp<AwgpuCtx> {
     private renderer: WgpuRenderer;
 
     constructor(renderer: WgpuRenderer) {
@@ -56,6 +56,8 @@ export class SceneDrawStep extends Acmp<AwgpuCtx> {
         this.renderer.executeDrawCalls(ctx.pass as GPURenderPassEncoder);
     }
 }
+
+export { SceneDrawCmp as SceneDrawStep };
 
 // ==================== Renderer Core ====================
 
@@ -83,9 +85,16 @@ export class WgpuRenderer {
     parentNode: Anode<Acmp<AwgpuCtx>[]> | null = null;
     target: WgpuTexture | null = null;
 
-    renderPassStep: RenderPass | null = null;
-    sceneDrawStep: SceneDrawStep | null = null;
-    endPassStep: EndPass | null = null;
+    renderPassCmp: RenderPass | null = null;
+    sceneDrawCmp: SceneDrawCmp | null = null;
+    endPassCmp: EndPass | null = null;
+
+    get renderPassStep(): RenderPass | null { return this.renderPassCmp; }
+    set renderPassStep(v: RenderPass | null) { this.renderPassCmp = v; }
+    get sceneDrawStep(): SceneDrawCmp | null { return this.sceneDrawCmp; }
+    set sceneDrawStep(v: SceneDrawCmp | null) { this.sceneDrawCmp = v; }
+    get endPassStep(): EndPass | null { return this.endPassCmp; }
+    set endPassStep(v: EndPass | null) { this.endPassCmp = v; }
 
     defaultShader: GShader | null = null;
     pipeline: GPURenderPipeline | null = null;
@@ -121,8 +130,8 @@ export class WgpuRenderer {
     clearColor = { r: 0.08, g: 0.09, b: 0.12, a: 1.0 };
     drawCallCount = 0;
 
-    private standaloneStartStep = new BeginFrame("StandaloneFrameStart");
-    private standaloneEndStep = new EndFrame();
+    private standaloneStartCmp = new BeginFrame("StandaloneFrameStart");
+    private standaloneEndCmp = new EndFrame();
 
     constructor(canvas: HTMLCanvasElement, options: WgpuRendererOptions = {}) {
         this.canvas = canvas;
@@ -197,7 +206,7 @@ export class WgpuRenderer {
 
     /**
      * Initializes Awgpu backend, configures layouts,
-     * creates depth stencil and default textures, and builds the pass steps.
+     * creates depth stencil and default textures, and builds the pass components.
      */
     async init(backend?: Backend): Promise<void> {
         if (backend) {
@@ -291,12 +300,12 @@ export class WgpuRenderer {
         // 5. Setup Depth Texture
         this.resizeDepthTexture();
 
-        // 6. Build RenderPass and SceneDrawStep components
-        this.buildPassSteps();
+        // 6. Build RenderPass and SceneDrawCmp components
+        this.buildPassCmps();
 
         // 7. Mount to parentNode if provided
         if (this.parentNode) {
-            this.mountPassSteps();
+            this.mountPassCmps();
         }
     }
 
@@ -309,10 +318,10 @@ export class WgpuRenderer {
     }
 
     /**
-     * Builds the pass-level steps: RenderPass, SceneDrawStep, and EndPass.
+     * Builds the pass-level components: RenderPass, SceneDrawCmp, and EndPass.
      */
-    buildPassSteps(): void {
-        this.renderPassStep = new RenderPass({
+    buildPassCmps(): void {
+        this.renderPassCmp = new RenderPass({
             label: `${this.label}_Pass`,
             colorAttachments: (ctx: AwgpuCtx) => [
                 {
@@ -331,20 +340,27 @@ export class WgpuRenderer {
                 depthStoreOp: "store",
             }),
         });
-        this.sceneDrawStep = new SceneDrawStep(this);
-        this.endPassStep = new EndPass();
+        this.sceneDrawCmp = new SceneDrawCmp(this);
+        this.endPassCmp = new EndPass();
+    }
+
+    /**
+     * Backwards-compatible alias for buildPassCmps.
+     */
+    buildPassSteps(): void {
+        this.buildPassCmps();
     }
 
     /**
      * Attaches this renderer to a parent Aflow node.
-     * Installs RenderPass, SceneDrawStep, and EndPass into the node's payload array.
+     * Installs RenderPass, SceneDrawCmp, and EndPass into the node's payload array.
      */
     attach(node: Anode<Acmp<AwgpuCtx>[]>): this {
         if (this.parentNode && this.parentNode !== node) {
             this.detach();
         }
         this.parentNode = node;
-        this.mountPassSteps();
+        this.mountPassCmps();
         return this;
     }
 
@@ -353,29 +369,37 @@ export class WgpuRenderer {
      */
     detach(): this {
         if (this.parentNode) {
-            this.unmountPassSteps();
+            this.unmountPassCmps();
             this.parentNode = null;
         }
         return this;
     }
 
-    private mountPassSteps(): void {
-        if (!this.parentNode || !this.renderPassStep || !this.sceneDrawStep || !this.endPassStep) return;
+    private mountPassCmps(): void {
+        if (!this.parentNode || !this.renderPassCmp || !this.sceneDrawCmp || !this.endPassCmp) return;
         if (!Array.isArray(this.parentNode.data)) {
             this.parentNode.data = [];
         }
         const filtered = this.parentNode.data.filter(
-            (c) => c !== this.renderPassStep && c !== this.sceneDrawStep && c !== this.endPassStep
+            (c) => c !== this.renderPassCmp && c !== this.sceneDrawCmp && c !== this.endPassCmp
         );
-        filtered.push(this.renderPassStep, this.sceneDrawStep, this.endPassStep);
+        filtered.push(this.renderPassCmp, this.sceneDrawCmp, this.endPassCmp);
         this.parentNode.data = filtered;
     }
 
-    private unmountPassSteps(): void {
+    private mountPassSteps(): void {
+        this.mountPassCmps();
+    }
+
+    private unmountPassCmps(): void {
         if (!this.parentNode || !Array.isArray(this.parentNode.data)) return;
         this.parentNode.data = this.parentNode.data.filter(
-            (c) => c !== this.renderPassStep && c !== this.sceneDrawStep && c !== this.endPassStep
+            (c) => c !== this.renderPassCmp && c !== this.sceneDrawCmp && c !== this.endPassCmp
         );
+    }
+
+    private unmountPassSteps(): void {
+        this.unmountPassCmps();
     }
 
     /**
@@ -778,16 +802,16 @@ export class WgpuRenderer {
         if (!this.backend?.device) return;
 
         const ctx = this.backend.newCtx();
-        this.standaloneStartStep.exec(ctx);
-        if (this.renderPassStep) {
-            this.renderPassStep.exec(ctx);
+        this.standaloneStartCmp.exec(ctx);
+        if (this.renderPassCmp) {
+            this.renderPassCmp.exec(ctx);
         }
-        if (this.sceneDrawStep) {
-            this.sceneDrawStep.exec(ctx);
+        if (this.sceneDrawCmp) {
+            this.sceneDrawCmp.exec(ctx);
         }
-        if (this.endPassStep) {
-            this.endPassStep.exec(ctx);
+        if (this.endPassCmp) {
+            this.endPassCmp.exec(ctx);
         }
-        this.standaloneEndStep.exec(ctx);
+        this.standaloneEndCmp.exec(ctx);
     }
 }

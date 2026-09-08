@@ -24,7 +24,7 @@ export type UniformEntry = UniformEntryBase & (
     | { type: "mat2" | "mat3" | "mat4"; value: number[] | Float32Array; transpose?: boolean }
 );
 
-// ==================== Step =====================
+// ==================== Components =====================
 
 /**
  * Uploads uniform values (scalars, vectors, matrices) to the active program.

@@ -17,7 +17,7 @@ cmp.exec(ctx, diag);
 
 ---
 
-## 1. Frame Lifecycle Steps
+## 1. Frame Lifecycle Components
 
 ### `BeginFrame`
 ```ts
@@ -33,7 +33,7 @@ new EndFrame()
 
 ---
 
-## 2. Pass Steps
+## 2. Pass Components
 
 ### `RenderPass`
 ```ts

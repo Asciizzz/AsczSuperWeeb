@@ -21,7 +21,7 @@ function uint(value: unknown, fallback = 1): number {
     return Math.max(1, Number(value ?? fallback) | 0);
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Dispatches compute workgroups.

@@ -44,7 +44,7 @@ function ensureEncoder(ctx: AwgpuCtx, label = "AwgpuCopy"): GPUCommandEncoder | 
     return ctx.encoder;
 }
 
-// ==================== Steps =====================
+// ==================== Components =====================
 
 /**
  * Copies bytes from one GPUBuffer to another.
