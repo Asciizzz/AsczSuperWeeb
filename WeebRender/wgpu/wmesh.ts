@@ -201,3 +201,21 @@ export class WgpuMesh extends GpuMesh<WgpuMeshPayload> {
 export { WgpuMesh as GMesh };
 export type { WgpuMeshOptions as GMeshOptions };
 
+/**
+ * Creates a WebGPU vertex buffer layout from stride and attributes.
+ */
+export function createVertexBufferLayout(
+    stride: number,
+    attributes: VertexAttribute[]
+): GPUVertexBufferLayout {
+    return {
+        arrayStride: stride,
+        stepMode: "vertex",
+        attributes: attributes.map((attr) => ({
+            format: attr.format,
+            offset: attr.offset,
+            shaderLocation: attr.shaderLocation,
+        })),
+    };
+}
+

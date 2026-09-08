@@ -1,6 +1,6 @@
-# Shader Graph System
+# Shader Circuit System
 
-Computation DAG system built on `Adataflow`. Authors mathematical operations, uniform parameters, texture sampling, and surface lighting on the CPU, and delegates code generation to backend compilers.
+Computation DAG system built on `Acircuit`. Authors mathematical operations, uniform parameters, texture sampling, and surface lighting on the CPU, and delegates code generation to backend compilers.
 
 ---
 
@@ -12,10 +12,11 @@ graph LR
     SN -->|out| ON[OutputNode: baseColor]
 ```
 
-### Separation of AST and Code Emission
-- **Graph and Nodes (AST)**: `ShaderNode` and `ShaderGraph` represent pure computation topology, socket connections, and parameter definitions. Nodes contain no backend-specific keywords, string concatenation, or graphics API calls.
-- **Compiler**: Backend compilers (such as `compileWgsl` in `wgpu/`) inspect graph topology, evaluate node types, and generate target shading language programs.
-- **Hardware Shader Handle**: GPU wrappers (`WgpuShader`) consume the resulting `CompiledShaderBlueprint` to create and cache hardware pipelines.
+### Separation of Circuit and Code Emission
+- **Circuit and Nodes**: `ShaderNode` and `ShaderCircuit` represent pure computation topology, socket connections, and parameter definitions. Nodes and circuits contain no backend-specific keywords, string concatenation, compilation methods, or graphics API calls.
+- **Direct Blueprint Definition**: The `ShaderCircuit` itself is the blueprint definition fed directly to hardware shader wrappers like `WgpuShader`.
+- **Single Shader Ownership Recommendation**: It is recommended that each `ShaderCircuit` belongs to a single shader instance (1:1 relationship). Sharing a mutable circuit across multiple compiled shaders is not recommended because mutating node defaults (such as default textures) directly influences that shader's fallback bindings.
+- **Hardware Shader Handle**: GPU wrappers (`WgpuShader`) consume the `ShaderCircuit` directly, compiling backend code (e.g. via `compileWgsl`) and managing hardware pipelines.
 
 ---
 
@@ -54,7 +55,7 @@ Organized under `nodes/`:
 
 File: `nodes/base.ts`
 
-`ShaderNode` extends `Adfnode` from `Atoolkit/adataflow`. Manages input sockets, output sockets, display names, and categories (`"input"`, `"math"`, `"color"`, `"shading"`, `"output"`).
+`ShaderNode` extends `Acnode` from `Atoolkit/acircuit`. Manages input sockets, output sockets, display names, and categories (`"input"`, `"math"`, `"color"`, `"shading"`, `"output"`).
 
 ### Color
 
@@ -160,42 +161,37 @@ Terminal sink node of a shader graph, accessible via `graph.outputNode`.
 
 ## Compilation and Memory Layout
 
-Handled through `ShaderGraph`:
+Handled through `ShaderCircuit` and backend compilers:
 
 ### 1. Topological Sorting
-`graph.topoSort()` resolves node dependency order via `Adataflow`, producing an ordered array of nodes.
+`circuit.getExecutableNodes()` traverses backwards from `outputNode`, pruning unlinked dead branches and ordering contributing nodes via `Acircuit`.
 
 ### 2. Parameter Uniqueness Validation
-`graph.validateParams(diag)` checks that all uniform nodes and texture sample nodes declare unique `paramName` values. Collisions record diagnostic error `ERR_DUPLICATE_SHADER_PARAM` to `graph.diag` and cause compilation to return `null`.
+`circuit.validateParams(diag)` checks that all active uniform nodes and texture sample nodes declare unique `paramName` values. Collisions record diagnostic error `ERR_DUPLICATE_SHADER_PARAM` to `diag` and cause compilation to return `null`.
 
 ### 3. Memory Layout Calculation
-`graph.buildParamLayout(sortedNodes)` calculates:
+`circuit.buildParamLayout(sortedNodes)` calculates:
 - Vector parameters (`vec4`): 16-byte alignment.
 - Float parameters (`float`): 4-byte alignment.
 - Total uniform buffer byte size: rounded up to a 16-byte boundary.
 - Default uniform data buffer: contiguous `Float32Array` populated with parameter defaults.
 - Texture binding indices: sequential texture and sampler slot assignments.
 
-### 4. Delegation to Compiler
-`graph.compile(options)` delegates code generation to `options.compiler` or `ShaderGraph.defaultCompiler`:
+### 4. Backend Shader Compilation
+Hardware wrappers compile the circuit directly. For example, `WgpuShader` calls `compileWgsl(circuit, options)`:
 
 ```typescript
-const blueprint: CompiledShaderBlueprint | null = graph.compile();
+// WgpuShader compiles the circuit directly
+const shader = new WgpuShader(circuit);
 ```
 
-Returns `CompiledShaderBlueprint`:
+Returns `CompiledWgsl`:
 ```typescript
-export interface CompiledShaderBlueprint {
-    name: string;
-    code: string;
-    codeSkinned?: string;
-    getCode?: (skinned: boolean) => string;
+export interface CompiledWgsl {
+    codeStatic: string;
+    codeSkinned: string;
     paramLayout: ShaderParamLayout;
     textureNodes: TextureSampleNode[];
-    orderedNodes: ShaderNode[];
-    skinned: boolean;
-    cullMode?: "none" | "front" | "back";
-    topology?: "point-list" | "line-list" | "line-strip" | "triangle-list" | "triangle-strip";
 }
 ```
 
@@ -205,11 +201,10 @@ export interface CompiledShaderBlueprint {
 
 ### Hardware Pipeline Binding
 
-Pass a compiled blueprint or uncompiled graph directly to `WgpuShader`:
+Pass the `ShaderCircuit` directly to `WgpuShader`:
 
 ```typescript
-// Compiles automatically if passed an uncompiled ShaderGraph
-const shader = new WgpuShader(graph);
+const shader = new WgpuShader(circuit);
 ```
 
 ### Parameter Inspection API

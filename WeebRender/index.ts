@@ -13,7 +13,6 @@ export {
 export {
     Mesh,
     MeshCmp,
-    createVertexBufferLayout,
     type Submesh,
     type VertexAttribute,
 } from "./mesh.js";
@@ -49,6 +48,7 @@ export {
     type WgpuTextureRefOptions,
     type WgpuTexturePayload,
     WgpuMesh,
+    createVertexBufferLayout,
     type WgpuMeshOptions,
     type WgpuMeshPayload,
     WgpuShader,
@@ -100,8 +100,9 @@ export {
     type ColorPaletteFn,
 } from "./extensions/index.js";
 
-// Shader Graph & Node System
+// Shader Circuit & Node System
 export {
+    ShaderCircuit,
     ShaderGraph,
     ShaderNode,
     ColorNode,

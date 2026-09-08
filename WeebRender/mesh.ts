@@ -20,24 +20,6 @@ export interface VertexAttribute {
     shaderLocation: number;
 }
 
-/**
- * Creates a WebGPU vertex buffer layout from stride and attributes.
- */
-export function createVertexBufferLayout(
-    stride: number,
-    attributes: VertexAttribute[]
-): GPUVertexBufferLayout {
-    return {
-        arrayStride: stride,
-        stepMode: "vertex",
-        attributes: attributes.map((attr) => ({
-            format: attr.format,
-            offset: attr.offset,
-            shaderLocation: attr.shaderLocation,
-        })),
-    };
-}
-
 let meshIdCounter = 0;
 
 /**

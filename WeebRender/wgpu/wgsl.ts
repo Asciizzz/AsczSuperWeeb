@@ -1,4 +1,4 @@
-import { ShaderGraph, type CompiledShaderBlueprint } from "../shader/graph.js";
+import { ShaderCircuit } from "../shader/circuit.js";
 import {
     ShaderNode,
     ColorNode,
@@ -12,7 +12,7 @@ import {
     ParamVec4Node,
     ParamFloatNode,
 } from "../shader/nodes.js";
-import type { ShaderParamLayout, CompiledTextureNode } from "../shader/types.js";
+import type { ShaderParamLayout } from "../shader/types.js";
 import type { Adiag } from "../../Atoolkit/adiag/index.js";
 
 export interface WgslCompileOptions {
@@ -25,12 +25,12 @@ export interface WgslCompileOptions {
 }
 
 function getExpressionForInput(
-    graph: ShaderGraph,
+    circuit: ShaderCircuit,
     node: ShaderNode,
     inputSocket: string,
     fallbackExpr: string
 ): string {
-    const wires = graph.getIncomingWires(node.id);
+    const wires = circuit.getIncomingWires(node.id);
     const wire = wires.find(w => w.inSocket === inputSocket);
     if (wire) {
         return `node_${wire.outNodeId}_${wire.outSocket}`;
@@ -38,7 +38,7 @@ function getExpressionForInput(
     return fallbackExpr;
 }
 
-function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
+function generateNodeWgsl(circuit: ShaderCircuit, node: ShaderNode): string {
     const p = `node_${node.id}`;
 
     if (node instanceof ColorNode) {
@@ -77,7 +77,7 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
     }
 
     if (node instanceof TextureSampleNode) {
-        const uvExpr = getExpressionForInput(graph, node, "uv", "in.uv");
+        const uvExpr = getExpressionForInput(circuit, node, "uv", "in.uv");
         const texBinding = `t_tex_${node.textureIndex}`;
         const sampBinding = `s_tex_${node.textureIndex}`;
         return `
@@ -87,8 +87,8 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
     }
 
     if (node instanceof MathNode) {
-        const inA = getExpressionForInput(graph, node, "a", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const inB = getExpressionForInput(graph, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inA = getExpressionForInput(circuit, node, "a", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inB = getExpressionForInput(circuit, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
         let op = "*";
         if (node.operation === "add") op = "+";
         else if (node.operation === "subtract") op = "-";
@@ -97,17 +97,17 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
     }
 
     if (node instanceof MixNode) {
-        const inA = getExpressionForInput(graph, node, "a", "vec4<f32>(0.0, 0.0, 0.0, 1.0)");
-        const inB = getExpressionForInput(graph, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const inFactor = getExpressionForInput(graph, node, "factor", node.defaultFactor.toFixed(4));
+        const inA = getExpressionForInput(circuit, node, "a", "vec4<f32>(0.0, 0.0, 0.0, 1.0)");
+        const inB = getExpressionForInput(circuit, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inFactor = getExpressionForInput(circuit, node, "factor", node.defaultFactor.toFixed(4));
         return `let ${p}_out = mix(${inA}, ${inB}, ${inFactor});`;
     }
 
     if (node instanceof BlendNode) {
-        const inA = getExpressionForInput(graph, node, "a", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const inB = getExpressionForInput(graph, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const inMode = getExpressionForInput(graph, node, "mode", node.defaultMode.toFixed(1));
-        const inFactor = getExpressionForInput(graph, node, "factor", node.defaultFactor.toFixed(4));
+        const inA = getExpressionForInput(circuit, node, "a", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inB = getExpressionForInput(circuit, node, "b", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inMode = getExpressionForInput(circuit, node, "mode", node.defaultMode.toFixed(1));
+        const inFactor = getExpressionForInput(circuit, node, "factor", node.defaultFactor.toFixed(4));
         return `
         var ${p}_out: vec4<f32>;
         let ${p}_m = i32(${inMode} + 0.5);
@@ -129,12 +129,12 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
     }
 
     if (node instanceof BasicShadingNode) {
-        const inColor = getExpressionForInput(graph, node, "color", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const inAmbient = getExpressionForInput(graph, node, "ambient", node.defaultAmbient.toFixed(4));
-        const inDiffuse = getExpressionForInput(graph, node, "diffuse", node.defaultDiffuse.toFixed(4));
+        const inColor = getExpressionForInput(circuit, node, "color", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const inAmbient = getExpressionForInput(circuit, node, "ambient", node.defaultAmbient.toFixed(4));
+        const inDiffuse = getExpressionForInput(circuit, node, "diffuse", node.defaultDiffuse.toFixed(4));
         const [lx, ly, lz] = node.defaultLightDir;
         const inLightDir = getExpressionForInput(
-            graph,
+            circuit,
             node,
             "lightDir",
             `normalize(vec3<f32>(${lx.toFixed(4)}, ${ly.toFixed(4)}, ${lz.toFixed(4)}))`
@@ -152,9 +152,9 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
     }
 
     if (node instanceof OutputNode) {
-        const baseColorExpr = getExpressionForInput(graph, node, "baseColor", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
-        const emissiveExpr = getExpressionForInput(graph, node, "emissive", "");
-        const alphaExpr = getExpressionForInput(graph, node, "alpha", "");
+        const baseColorExpr = getExpressionForInput(circuit, node, "baseColor", "vec4<f32>(1.0, 1.0, 1.0, 1.0)");
+        const emissiveExpr = getExpressionForInput(circuit, node, "emissive", "");
+        const alphaExpr = getExpressionForInput(circuit, node, "alpha", "");
 
         let code = `    finalSurfaceColor = ${baseColorExpr};`;
         if (alphaExpr) {
@@ -171,7 +171,7 @@ function generateNodeWgsl(graph: ShaderGraph, node: ShaderNode): string {
 
 function assembleWgslSource(
     paramLayout: ShaderParamLayout,
-    textureNodes: CompiledTextureNode[],
+    textureNodes: TextureSampleNode[],
     statements: string[],
     skinned = false
 ): string {
@@ -198,7 +198,7 @@ function assembleWgslSource(
         : "";
 
     const textureBindingsWGSL = textureNodes
-        .map((node, i) => {
+        .map((_, i) => {
             return (
                 `@group(2) @binding(${1 + i * 2}) var t_tex_${i}: texture_2d<f32>;\n` +
                 `@group(2) @binding(${2 + i * 2}) var s_tex_${i}: sampler;`
@@ -206,67 +206,81 @@ function assembleWgslSource(
         })
         .join("\n");
 
-    const vertexInputWGSL = skinned
-        ? `struct VertexInput {
-            @location(0) position: vec3<f32>,
-            @location(1) normal: vec3<f32>,
-            @location(2) uv: vec2<f32>,
-            @location(3) joints: vec4<u32>,
-            @location(4) weights: vec4<f32>,
-        };`
-        : `struct VertexInput {
-            @location(0) position: vec3<f32>,
-            @location(1) normal: vec3<f32>,
-            @location(2) uv: vec2<f32>,
-        };`;
-
     const vsBodyWGSL = skinned
-        ? `    var out: VertexOutput;
-        let skinMat =
-            in.weights.x * uBones[in.joints.x] +
-            in.weights.y * uBones[in.joints.y] +
-            in.weights.z * uBones[in.joints.z] +
-            in.weights.w * uBones[in.joints.w];
-        let localSkinnedPos = skinMat * vec4<f32>(in.position, 1.0);
-        let worldPos4 = uObject.model * localSkinnedPos;
-        out.worldPos = worldPos4.xyz;
-        out.clipPos = uCamera.viewProj * worldPos4;
-        let localSkinnedNorm = (skinMat * vec4<f32>(in.normal, 0.0)).xyz;
-        out.normal = normalize((uObject.model * vec4<f32>(localSkinnedNorm, 0.0)).xyz);
-        out.uv = in.uv;
-        return out;`
-            : `    var out: VertexOutput;
-        let worldPos4 = uObject.model * vec4<f32>(in.position, 1.0);
-        out.worldPos = worldPos4.xyz;
-        out.clipPos = uCamera.viewProj * worldPos4;
-        out.normal = normalize((uObject.model * vec4<f32>(in.normal, 0.0)).xyz);
-        out.uv = in.uv;
-        return out;
-        `;
+        ? `
+    let jointIndices = in.joints;
+    let jointWeights = in.weights;
 
-    return /* wgsl */ `
-    struct CameraUniforms {
-        viewProj: mat4x4<f32>,
-        cameraPos: vec4<f32>,
-    };
+    let bone0 = uBones[jointIndices.x];
+    let bone1 = uBones[jointIndices.y];
+    let bone2 = uBones[jointIndices.z];
+    let bone3 = uBones[jointIndices.w];
 
-    struct ObjectUniforms {
-        model: mat4x4<f32>,
-    };
+    let skinMatrix =
+        bone0 * jointWeights.x +
+        bone1 * jointWeights.y +
+        bone2 * jointWeights.z +
+        bone3 * jointWeights.w;
 
-${materialStructWGSL}
+    let worldPos4 = uObject.modelMatrix * skinMatrix * vec4<f32>(in.position, 1.0);
+    var out: VertexOutput;
+    out.clipPosition = uCamera.viewProj * worldPos4;
+    out.worldPos = worldPos4.xyz;
+    let skinNorm = (skinMatrix * vec4<f32>(in.normal, 0.0)).xyz;
+    out.normal = normalize((uObject.modelMatrix * vec4<f32>(skinNorm, 0.0)).xyz);
+    out.uv = in.uv;
+    return out;`
+        : `
+    let worldPos4 = uObject.modelMatrix * vec4<f32>(in.position, 1.0);
+    var out: VertexOutput;
+    out.clipPosition = uCamera.viewProj * worldPos4;
+    out.worldPos = worldPos4.xyz;
+    out.normal = normalize((uObject.modelMatrix * vec4<f32>(in.normal, 0.0)).xyz);
+    out.uv = in.uv;
+    return out;`;
+
+    const vertexInputStructWGSL = skinned
+        ? `
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) joints: vec4<u32>,
+    @location(4) weights: vec4<f32>,
+};`
+        : `
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};`;
+
+    return `
+// ================================================================
+//  Generated WebGPU WGSL Shader
+// ================================================================
+
+struct CameraUniforms {
+    viewProj: mat4x4<f32>,
+    eyePosition: vec4<f32>,
+};
+
+struct ObjectUniforms {
+    modelMatrix: mat4x4<f32>,
+};
 
 @group(0) @binding(0) var<uniform> uCamera: CameraUniforms;
 @group(1) @binding(0) var<uniform> uObject: ObjectUniforms;
+
+${materialStructWGSL}
 ${materialBindingWGSL}
 ${skinBindingWGSL}
-
 ${textureBindingsWGSL}
 
-${vertexInputWGSL}
+${vertexInputStructWGSL}
 
 struct VertexOutput {
-    @builtin(position) clipPos: vec4<f32>,
+    @builtin(position) clipPosition: vec4<f32>,
     @location(0) worldPos: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
@@ -287,30 +301,37 @@ ${statements.join("\n")}
 `;
 }
 
+export interface CompiledWgsl {
+    codeStatic: string;
+    codeSkinned: string;
+    paramLayout: ShaderParamLayout;
+    textureNodes: TextureSampleNode[];
+}
+
 /**
- * Compiles a language-agnostic ShaderGraph into WebGPU WGSL shader code and precomputes uniform layouts.
+ * Compiles a language-agnostic ShaderCircuit into WebGPU WGSL shader code and precomputes uniform layouts.
  */
 export function compileWgsl(
-    graph: ShaderGraph,
+    circuit: ShaderCircuit,
     options: WgslCompileOptions = {}
-): CompiledShaderBlueprint | null {
-    const diag = options.diag ?? graph.diag;
+): CompiledWgsl | null {
+    const diag = options.diag ?? circuit.diag;
     diag.clear();
 
     // 1. Validate parameters uniqueness on contributing nodes
-    const valid = graph.validateParams(diag);
+    const valid = circuit.validateParams(diag);
     if (!valid) return null;
 
     // 2. Topological sort of contributing nodes
-    const sortedNodes = graph.getExecutableNodes();
+    const sortedNodes = circuit.getExecutableNodes();
 
     // 3. Extract layout & texture nodes
-    const { paramLayout, textureNodes } = graph.buildParamLayout(sortedNodes);
+    const { paramLayout, textureNodes } = circuit.buildParamLayout(sortedNodes);
 
     // 4. Generate per-node statements
     const statements: string[] = [];
     for (const node of sortedNodes) {
-        const stmt = generateNodeWgsl(graph, node);
+        const stmt = generateNodeWgsl(circuit, node);
         if (stmt.trim().length > 0) {
             statements.push(stmt);
         }
@@ -319,22 +340,11 @@ export function compileWgsl(
     // 5. Assemble WGSL shader source (both static and skinned)
     const codeStatic = assembleWgslSource(paramLayout, textureNodes, statements, false);
     const codeSkinned = assembleWgslSource(paramLayout, textureNodes, statements, true);
-    const getCode = (isSkinned: boolean) => (isSkinned ? codeSkinned : codeStatic);
-    const defaultCode = options.skinned ? codeSkinned : codeStatic;
 
     return {
-        name: graph.name,
-        code: defaultCode,
+        codeStatic,
         codeSkinned,
-        getCode,
         paramLayout,
         textureNodes,
-        orderedNodes: sortedNodes,
-        skinned: options.skinned ?? true,
-        cullMode: options.cullMode,
-        topology: options.topology,
     };
 }
-
-// Register as default compiler for ShaderGraph
-ShaderGraph.defaultCompiler = compileWgsl;

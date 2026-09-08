@@ -25,7 +25,7 @@ WebGPU hardware implementation for `WeebRender`, managing GPU buffers, pipelines
 ### `wshader.ts`
 
 `WgpuShader` specializes `GpuShader<WgpuShaderPayload>`:
-- Constructor accepts either a `CompiledShaderBlueprint` or an uncompiled `ShaderGraph`.
+- Constructor accepts a `ShaderCircuit` directly, compiling backend WGSL and layouts on initialization.
 - Caches compiled `GPURenderPipeline` instances by vertex stride and skinning state (`32_static` vs `64_skinned`).
 - Manages `materialBindGroupLayout` (Group 2) and `skinBindGroupLayout` (Group 3).
 - Supports runtime pipeline hot-reloading via `invalidateGpu()`.
@@ -33,9 +33,8 @@ WebGPU hardware implementation for `WeebRender`, managing GPU buffers, pipelines
 ### `wgsl.ts`
 
 Dedicated WebGPU shader code compiler:
-- `compileWgsl(graph, options)`: Traverses `ShaderGraph` AST nodes, validates parameter uniqueness, builds memory layouts, and generates WGSL vertex and fragment programs.
-- Emits WGSL code for both static (stride 32) and skinned (stride 64) vertex paths in a single blueprint.
-- Automatically registers as `ShaderGraph.defaultCompiler` when `wgpu` is imported.
+- `compileWgsl(circuit, options)`: Traverses `ShaderCircuit` topology, validates parameter uniqueness, builds memory layouts, and generates WGSL vertex and fragment programs.
+- Emits WGSL code for both static (stride 32) and skinned (stride 64) vertex paths.
 
 ### `renderer.ts`
 

@@ -2,6 +2,8 @@
 
 Standalone socket-based computation circuit with extensible sockets, lightweight wire indexing, and unified topological execution (`node.process(packets, ctx)`).
 
+Not to be confused with Acircus of course.
+
 ---
 
 ## Architecture

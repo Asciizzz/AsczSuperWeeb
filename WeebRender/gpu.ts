@@ -1,6 +1,7 @@
 import type { Submesh, VertexAttribute, Mesh } from "./mesh.js";
 import type { Texture } from "./texture.js";
-import type { CompiledShaderBlueprint } from "./shader/graph.js";
+import type { ShaderCircuit } from "./shader/circuit.js";
+import type { TextureSampleNode } from "./shader/nodes.js";
 import type { ShaderParamLayout } from "./shader/types.js";
 import type { MaterialParamRecord } from "./material.js";
 import { ShaderParamsCmp } from "./shader/params.js";
@@ -74,28 +75,31 @@ export class GpuMesh<TBackend = unknown> {
 
 /**
  * Universal GPU Shader handle.
- * Holds compiled blueprint and parameter layout.
+ * Holds reference to the authoring ShaderCircuit and precomputed parameter layout.
  * Hardware-specific pipeline state (WebGPU GPURenderPipeline or WebGL2 program) is held in `backend`.
  */
 export class GpuShader<TBackend = unknown> {
     readonly id: number;
     name: string;
-    blueprint: CompiledShaderBlueprint;
+    circuit: ShaderCircuit;
     paramLayout: ShaderParamLayout;
+    textureNodes: TextureSampleNode[];
     backend: TBackend;
     gpuOwned: boolean;
 
     constructor(
         name = "GpuShader",
-        blueprint: CompiledShaderBlueprint,
+        circuit: ShaderCircuit,
         paramLayout: ShaderParamLayout,
+        textureNodes: TextureSampleNode[] = [],
         backend: TBackend = undefined as any,
         gpuOwned = true
     ) {
         this.id = ++nextGpuShaderId;
         this.name = name;
-        this.blueprint = blueprint;
+        this.circuit = circuit;
         this.paramLayout = paramLayout;
+        this.textureNodes = textureNodes;
         this.backend = backend;
         this.gpuOwned = gpuOwned;
     }

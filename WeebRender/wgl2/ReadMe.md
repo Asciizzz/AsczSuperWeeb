@@ -39,9 +39,9 @@ The WebGL2 backend targets WebGL 2.0 (OpenGL ES 3.0) contexts, specializing the 
 ### `glsl.ts`
 
 Dedicated WebGL2 shader code compiler:
-- Translates `ShaderGraph` AST nodes into GLSL ES 3.0 vertex and fragment shaders.
+- Translates `ShaderCircuit` nodes into GLSL ES 3.0 vertex and fragment shaders.
 - Emits `#version 300 es`, standard attribute locations (`layout(location = 0) in vec3 position;`), and uniform blocks.
-- Can be supplied to `graph.compile({ compiler: compileGlsl })` or registered as `ShaderGraph.defaultCompiler`.
+- Invoked by `GLShader` via `compileGlsl(circuit, options)`.
 
 ### `renderer.ts`
 

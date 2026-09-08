@@ -14,41 +14,19 @@ import type {
     ShaderParamLayout,
     UniformParamDef,
     TextureParamDef,
-    CompiledTextureNode,
 } from "./types.js";
 
-
-export interface CompiledShaderBlueprint {
-    name: string;
-    code: string;
-    codeSkinned?: string;
-    getCode?: (skinned: boolean) => string;
-    paramLayout: ShaderParamLayout;
-    textureNodes: CompiledTextureNode[];
-    orderedNodes: ShaderNode[];
-    skinned: boolean;
-    cullMode?: "none" | "front" | "back";
-    topology?: "point-list" | "line-list" | "line-strip" | "triangle-list" | "triangle-strip";
-}
-
-export type ShaderCompiler<TOptions = any> = (
-    graph: ShaderGraph,
-    options?: TOptions
-) => CompiledShaderBlueprint | null;
-
 /**
- * Directed acyclic graph of shader micro-nodes connected via typed sockets.
- * Extends the generic Acircuit computation graph, purely representing shader AST topology
- * and uniform buffer memory layouts without binding to any specific graphics API or shading language.
+ * Directed computation circuit of shader micro-nodes connected via typed sockets.
+ * A pure CPU data container representing shader AST topology and parameter definitions.
+ * Contains zero compilation logic or target shading language code.
  */
-export class ShaderGraph extends Acircuit {
-    static defaultCompiler?: ShaderCompiler;
-
+export class ShaderCircuit extends Acircuit {
     readonly name: string;
     readonly diag: Adiag;
     private _lastOutputNode: OutputNode;
 
-    constructor(name = "ShaderGraph", diag?: Adiag) {
+    constructor(name = "ShaderCircuit", diag?: Adiag) {
         super({ label: name });
         this.name = name;
         this.diag = diag ?? new Adiag();
@@ -117,12 +95,54 @@ export class ShaderGraph extends Acircuit {
 
     /**
      * Topologically sorts only the active nodes that contribute to the shader output.
-     * Dead / disconnected nodes are pruned.
+     * Dead / disconnected nodes and scratch loops are ignored.
      */
     getExecutableNodes(): ShaderNode[] {
         const contributing = this.getContributingNodes();
-        const allSorted = this.topoSort() as ShaderNode[];
-        return allSorted.filter((n) => contributing.has(n));
+        if (contributing.size === 0) return [];
+
+        const inDeps = new Map<string, Set<string>>();
+        const outDeps = new Map<string, Set<string>>();
+
+        for (const node of contributing) {
+            inDeps.set(node.id, new Set());
+            outDeps.set(node.id, new Set());
+        }
+
+        for (const node of contributing) {
+            const inWires = this.getIncomingWires(node.id);
+            for (const wire of inWires) {
+                const producer = this.nodes.get(wire.outNodeId);
+                if (producer instanceof ShaderNode && contributing.has(producer)) {
+                    inDeps.get(node.id)!.add(wire.outNodeId);
+                    outDeps.get(wire.outNodeId)!.add(node.id);
+                }
+            }
+        }
+
+        const readyQueue: string[] = [];
+        for (const [nodeId, deps] of inDeps) {
+            if (deps.size === 0) readyQueue.push(nodeId);
+        }
+
+        const sorted: ShaderNode[] = [];
+        while (readyQueue.length > 0) {
+            const currentId = readyQueue.shift()!;
+            const node = this.nodes.get(currentId) as ShaderNode | undefined;
+            if (node) sorted.push(node);
+
+            for (const dependentId of outDeps.get(currentId)!) {
+                const depSet = inDeps.get(dependentId)!;
+                depSet.delete(currentId);
+                if (depSet.size === 0) readyQueue.push(dependentId);
+            }
+        }
+
+        if (sorted.length !== contributing.size) {
+            throw new Error(`[ShaderGraph] Cyclic dependency detected among contributing nodes in "${this.name}".`);
+        }
+
+        return sorted;
     }
 
     /**
@@ -170,36 +190,27 @@ export class ShaderGraph extends Acircuit {
      */
     buildParamLayout(sortedNodes?: ShaderNode[]): {
         paramLayout: ShaderParamLayout;
-        textureNodes: CompiledTextureNode[];
+        textureNodes: TextureSampleNode[];
     } {
         const nodes = sortedNodes ?? this.getExecutableNodes();
         const uniformsMap = new Map<string, UniformParamDef>();
         const texturesMap = new Map<string, TextureParamDef>();
-        const textureNodes: CompiledTextureNode[] = [];
+        const textureNodes: TextureSampleNode[] = [];
 
         let currentByteOffset = 0;
 
         for (const node of nodes) {
             if (node instanceof TextureSampleNode) {
                 const texIdx = textureNodes.length;
-                // Assign textureIndex onto the live node so wgsl generation
-                // (which runs in the same compile pass) can read it.
                 node.textureIndex = texIdx;
-                // Snapshot: copy all values, keep no reference to the live node.
-                const snapshot: CompiledTextureNode = {
-                    nodeId:         node.id,
-                    textureIndex:   texIdx,
-                    isParam:        node.isParam,
-                    paramName:      node.isParam ? (node.paramName ?? node.id) : undefined,
-                    defaultTexture: node.defaultTexture,
-                };
-                textureNodes.push(snapshot);
+                textureNodes.push(node);
 
                 if (node.isParam) {
                     const paramName = node.paramName ?? node.id;
                     texturesMap.set(paramName, {
                         name: paramName,
-                        bindingIndex: 1 + texIdx * 2, // texture at 1 + 2*i, sampler at 2 + 2*i (0 is uMaterial)
+                        textureIndex: texIdx,
+                        bindingIndex: 1 + texIdx * 2,
                         defaultTexture: node.defaultTexture,
                     });
                 }
@@ -253,37 +264,6 @@ export class ShaderGraph extends Acircuit {
 
         return { paramLayout, textureNodes };
     }
-
-    /**
-     * Compiles the node graph using the registered shader compiler (or compiler specified in options).
-     * Returns null and records diagnostic errors if compilation fails.
-     */
-    compile(options: {
-        target?: string;
-        meta?: Record<string, unknown>;
-        skinned?: boolean;
-        cullMode?: "none" | "front" | "back";
-        topology?: "point-list" | "line-list" | "line-strip" | "triangle-list" | "triangle-strip";
-        diag?: Adiag;
-        compiler?: ShaderCompiler;
-        [key: string]: unknown;
-    } = {}): CompiledShaderBlueprint | null {
-        const diag = options.diag ?? this.diag;
-        diag.clear();
-
-        if (!this.validateParams(diag)) {
-            return null;
-        }
-
-        const compiler = options.compiler ?? ShaderGraph.defaultCompiler;
-        if (!compiler) {
-            diag.err({
-                code: "ERR_NO_SHADER_COMPILER",
-                raw: `No shader compiler registered for ShaderGraph "${this.name}". Register ShaderGraph.defaultCompiler or supply options.compiler.`,
-            });
-            return null;
-        }
-
-        return compiler(this, options);
-    }
 }
+
+export { ShaderCircuit as ShaderGraph };

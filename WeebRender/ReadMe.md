@@ -5,7 +5,7 @@
 - `Acmp`: Composable execution step payloads.
 - `Aflow`: Directed execution graph for pass scheduling.
 - `Alm`: Linear algebra matrices and quaternions.
-- `Adataflow`: Typed socket computation graph driving shader graph topology.
+- `Acircuit`: Typed socket computation graph driving shader graph topology.
 
 ---
 
@@ -18,7 +18,7 @@ Pure CPU memory representations with zero hardware allocations:
 - `Mesh`: Interleaved vertex buffers (`Float32Array`), index buffers (`Uint16Array` or `Uint32Array`), vertex attributes, and submesh partitions. Operates in headless environments and across multiple GPU backends.
 - `Texture`: CPU image buffer holding pixel dimensions (`width`, `height`) and byte buffers (`Uint8Array`).
 - `Skeleton`: Joint definitions, hierarchy parent indices, bind pose transforms, and inverse bind matrices.
-- `ShaderGraph`: Node graph describing math, uniforms, texture sampling, and lighting logic. Compiles to a backend-agnostic `CompiledShaderBlueprint`.
+- `ShaderCircuit`: Pure CPU container describing math, uniforms, texture sampling, and lighting topology. Directly defines a hardware shader without intermediate blueprints.
 
 ### Universal GPU Handles (`gpu.ts`)
 
@@ -26,7 +26,7 @@ Universal handles store common metadata and expose uniform parameter helpers on 
 
 - `GpuMesh<TBackend = unknown>`: Vertex count, index count, vertex stride, attributes, submesh ranges, and optional CPU mesh reference.
 - `GpuTexture<TBackend = unknown>`: Dimensions, label, GPU ownership flag, and optional CPU texture reference.
-- `GpuShader<TBackend = unknown>`: Compiled blueprint, `ShaderParamLayout`, and parameter query methods (`getParamNames`, `hasParam`, `getDefaultParam`, `createDefaultParams`, `createParamsCmp`).
+- `GpuShader<TBackend = unknown>`: `ShaderCircuit` reference, `ShaderParamLayout`, texture nodes, and parameter query methods (`getParamNames`, `hasParam`, `getDefaultParam`, `createDefaultParams`, `createParamsCmp`).
 
 Ergonomic aliases `GMesh`, `GTexture`, `GShader`, and `Shader` map directly to these universal handles.
 
@@ -38,7 +38,7 @@ Active hardware backend:
 - `WgpuMesh`: Manages `GPUBuffer` allocations, vertex and index data uploads, 4-byte padding, and dynamic buffer reallocation.
 - `WgpuTexture`: Manages `GPUTexture`, `GPUTextureView`, and `GPUSampler` objects, supporting CPU texture uploads and offscreen Render-to-Texture (RTT) targets.
 - `WgpuShader`: Manages `GPURenderPipeline` caching for static (stride 32) and skinned (stride 64) vertex configurations, WGSL shader modules, and bind group layouts.
-- `compileWgsl`: Dedicated WebGPU shader compiler translating `ShaderGraph` AST topology into WGSL source code.
+- `compileWgsl`: Dedicated WebGPU shader compiler translating `ShaderCircuit` topology into WGSL source code.
 - `WgpuRenderer`: Orchestrates render passes via `Aflow`, managing camera, object, material, and skinning bind groups.
 
 See [wgpu/ReadMe.md](./wgpu/ReadMe.md) for WebGPU backend details.
@@ -92,19 +92,19 @@ import {
     MeshCmp,
     MaterialCmp,
     Mesh,
-    ShaderGraph,
+    ShaderCircuit,
     ColorNode,
     WgpuShader,
 } from "./index.js";
 
-// 1. Author Shader Graph
-const graph = new ShaderGraph("AlpineMaterial");
+// 1. Author Shader Circuit
+const circuit = new ShaderCircuit("AlpineMaterial");
 const tintNode = new ColorNode("tintColor", [0.8, 0.8, 0.9, 1.0], true, "tintColor");
-graph.addNode(tintNode);
-graph.connect(tintNode, "color", graph.outputNode, "baseColor");
+circuit.addNode(tintNode);
+circuit.connect(tintNode, "color", circuit.outputNode, "baseColor");
 
-// 2. Instantiate Shader from Graph
-const rockShader = new WgpuShader(graph);
+// 2. Instantiate Shader from Circuit
+const rockShader = new WgpuShader(circuit);
 
 // 3. Define CPU Geometry
 const cpuMesh = new Mesh(

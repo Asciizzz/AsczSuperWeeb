@@ -1,11 +1,14 @@
 import { GpuShader } from "../gpu.js";
-import type { CompiledShaderBlueprint } from "../shader/graph.js";
+import type { ShaderCircuit } from "../shader/circuit.js";
+import type { TextureSampleNode } from "../shader/nodes.js";
 import type { ShaderParamLayout } from "../shader/types.js";
 import { ShaderParamsCmp } from "../shader/params.js";
 import type { MaterialParamRecord, MaterialParamValue } from "../material.js";
-
+import { compileWgsl, type WgslCompileOptions } from "./wgsl.js";
 
 let gShaderIdCounter = 0;
+
+export interface WgpuShaderOptions extends WgslCompileOptions {}
 
 export interface WgpuShaderPayload {
     pipeline: GPURenderPipeline | null;
@@ -24,6 +27,8 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     readonly skinned: boolean;
     cullMode: GPUCullMode;
     topology: GPUPrimitiveTopology;
+    readonly codeStatic: string;
+    readonly codeSkinned: string;
 
     pipeline: GPURenderPipeline | null = null;
     materialBindGroupLayout: GPUBindGroupLayout | null = null;
@@ -36,17 +41,23 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     private shaderModule: GPUShaderModule | null = null;
     private pipelineLayout: GPUPipelineLayout | null = null;
 
-    constructor(blueprint: CompiledShaderBlueprint) {
-        super(blueprint.name, blueprint, blueprint.paramLayout, {
+    constructor(circuit: ShaderCircuit, options: WgpuShaderOptions = {}) {
+        const compiled = compileWgsl(circuit, options);
+        if (!compiled) {
+            throw new Error(`[WgpuShader] Failed to compile ShaderCircuit "${circuit.name}": ${circuit.diag.lastErr()?.raw ?? "unknown error"}`);
+        }
+        super(circuit.name, circuit, compiled.paramLayout, compiled.textureNodes, {
             pipeline: null,
             materialBindGroupLayout: null,
             textureBindGroupLayout: null,
             skinBindGroupLayout: null,
         }, true);
         this.numericId = ++gShaderIdCounter;
-        this.skinned = !!blueprint.skinned;
-        this.cullMode = (blueprint.cullMode as GPUCullMode) ?? "back";
-        this.topology = (blueprint.topology as GPUPrimitiveTopology) ?? "triangle-list";
+        this.codeStatic = compiled.codeStatic;
+        this.codeSkinned = compiled.codeSkinned;
+        this.skinned = !!options.skinned;
+        this.cullMode = (options.cullMode as GPUCullMode) ?? "back";
+        this.topology = (options.topology as GPUPrimitiveTopology) ?? "triangle-list";
     }
 
     destroy(): void {
@@ -54,7 +65,11 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
     }
 
     get code(): string {
-        return this.blueprint.code;
+        return this.codeStatic;
+    }
+
+    getCode(skinned = false): string {
+        return skinned ? this.codeSkinned : this.codeStatic;
     }
 
     /**
@@ -107,9 +122,7 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
         // 1. Compile WGSL Shader Module per pipeline key if not already compiled
         let shaderModule = this.shaderModulesByKey.get(pipelineKey);
         if (!shaderModule) {
-            const shaderCode = this.blueprint.getCode
-                ? this.blueprint.getCode(isSkinned)
-                : (isSkinned && this.blueprint.codeSkinned ? this.blueprint.codeSkinned : this.blueprint.code);
+            const shaderCode = isSkinned ? this.codeSkinned : this.codeStatic;
             shaderModule = device.createShaderModule({
                 label: `ShaderModule_${this.name}_${this.id}_${pipelineKey}`,
                 code: shaderCode,
@@ -134,7 +147,7 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
                 },
             ];
 
-            for (let i = 0; i < this.blueprint.textureNodes.length; i++) {
+            for (let i = 0; i < this.textureNodes.length; i++) {
                 materialEntries.push(
                     {
                         binding: 1 + i * 2,

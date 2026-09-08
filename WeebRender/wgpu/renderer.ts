@@ -19,7 +19,7 @@ import { CameraCmp } from "../camera.js";
 import { SkinCmp } from "../skeleton.js";
 import { MaterialCmp, type MaterialParamRecord } from "../material.js";
 import { ShaderParamsCmp } from "../shader/params.js";
-import { ShaderGraph } from "../shader/graph.js";
+import { ShaderCircuit } from "../shader/circuit.js";
 import { ColorNode } from "../shader/nodes/color.js";
 
 import { WgpuMesh, GMesh } from "./wmesh.js";
@@ -301,14 +301,11 @@ export class WgpuRenderer {
     }
 
     private createDefaultShader(): GShader {
-        const graph = new ShaderGraph("DefaultShader");
+        const circuit = new ShaderCircuit("DefaultShader");
         const colorNode = new ColorNode("colorNode", [1, 1, 1, 1], true, "baseColor");
-        graph.addNode(colorNode);
-        const bp = graph.compile();
-        if (!bp) {
-            throw new Error(`[WgpuRenderer] Default shader compilation failed: ${graph.diag.lastErr()?.raw}`);
-        }
-        return new GShader(bp);
+        circuit.addNode(colorNode);
+        circuit.connect(colorNode, "color", circuit.outputNode, "baseColor");
+        return new GShader(circuit);
     }
 
     /**
@@ -554,9 +551,9 @@ export class WgpuRenderer {
             { binding: 0, resource: { buffer: matBuffer } },
         ];
 
-        for (let i = 0; i < shader.blueprint.textureNodes.length; i++) {
-            const texNode = shader.blueprint.textureNodes[i];
-            const paramName = texNode.paramName ?? texNode.nodeId;
+        for (let i = 0; i < shader.textureNodes.length; i++) {
+            const texNode = shader.textureNodes[i];
+            const paramName = texNode.paramName ?? texNode.id;
             const paramVal = paramValues?.[paramName];
             const gTex = (paramVal instanceof GTexture ? paramVal : undefined)
                 ?? (texNode.defaultTexture instanceof GTexture ? texNode.defaultTexture : undefined)
