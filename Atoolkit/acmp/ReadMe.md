@@ -25,9 +25,9 @@ export class Acmp<TCtx = unknown, TRet = void> {
 }
 ```
 
-* **`ctx`**: Mutable execution context passed directly to the component.
-* **`diag`**: Optional diagnostic collector for reporting errors and telemetry.
-* **`TRet`**: Typed return value (defaults to `void`). Used when queries or calculations return data directly rather than mutating `ctx`.
+- **`ctx`**: Mutable execution context passed directly to the component.
+- **`diag`**: Optional diagnostic collector for reporting errors and telemetry.
+- **`TRet`**: Typed return value (defaults to `void`). Used when queries or calculations return data directly rather than mutating `ctx`.
 
 ```ts
 import { Acmp } from "Atoolkit/acmp";

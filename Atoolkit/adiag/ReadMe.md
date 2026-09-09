@@ -67,8 +67,8 @@ export interface AdiagResult {
 }
 ```
 
-* **`ref`**: Causal reference pointer linking a high-level failure directly to its low-level cause.
-* **`raw`**: Message template containing `$key$` and `$key.subkey$` placeholders interpolated from `data`.
+- **`ref`**: Causal reference pointer linking a high-level failure directly to its low-level cause.
+- **`raw`**: Message template containing `$key$` and `$key.subkey$` placeholders interpolated from `data`.
 
 ```ts
 export class Adiag {
@@ -92,8 +92,8 @@ export class Adiag {
 }
 ```
 
-* **`results`**: Log history capped at 1,000 entries; shifts oldest items out automatically.
-* **`lastErr()`**: Scans backward from newest entries for the most recent error record.
-* **`getCauseChain(result)`**: Traverses `ref` pointers into an array ordered from high-level failure to root cause, using a visited set to prevent cycles.
-* **`compileMsg(raw, data)`**: Interpolates `$key$` and nested `$key.subkey$` placeholders against `data` values.
-* **`resultToChainMsg(result)`**: Formats the complete causal chain into an indented multi-line diagnostic trace.
+- **`results`**: Log history capped at 1,000 entries; shifts oldest items out automatically.
+- **`lastErr()`**: Scans backward from newest entries for the most recent error record.
+- **`getCauseChain(result)`**: Traverses `ref` pointers into an array ordered from high-level failure to root cause, using a visited set to prevent cycles.
+- **`compileMsg(raw, data)`**: Interpolates `$key$` and nested `$key.subkey$` placeholders against `data` values.
+- **`resultToChainMsg(result)`**: Formats the complete causal chain into an indented multi-line diagnostic trace.

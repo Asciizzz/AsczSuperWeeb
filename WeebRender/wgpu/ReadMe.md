@@ -18,9 +18,9 @@ export class WgpuMesh extends GpuMesh<WgpuMeshPayload> {
 }
 ```
 
-* **`fromMesh(...)`**: Allocates GPU buffers with 4-byte padding guarantees and uploads vertex and index data.
-* **`ref(...)`**: Wraps existing GPU buffers without taking ownership of underlying allocations.
-* **`updateFromMesh(...)`**: Dynamically reallocates GPU buffers if incoming mesh data exceeds current buffer capacity.
+- **`fromMesh(...)`**: Allocates GPU buffers with 4-byte padding guarantees and uploads vertex and index data.
+- **`ref(...)`**: Wraps existing GPU buffers without taking ownership of underlying allocations.
+- **`updateFromMesh(...)`**: Dynamically reallocates GPU buffers if incoming mesh data exceeds current buffer capacity.
 
 ### `wtexture.ts`
 
@@ -34,8 +34,8 @@ export class WgpuTexture extends GpuTexture<WgpuTexturePayload> {
 }
 ```
 
-* **`fromTexture(...)`**: Allocates a 2D `GPUTexture`, derives format parameters, and writes pixel byte buffers.
-* **`ref(...)`**: Wraps external textures (e.g. render targets) with custom view and sampler configurations.
+- **`fromTexture(...)`**: Allocates a 2D `GPUTexture`, derives format parameters, and writes pixel byte buffers.
+- **`ref(...)`**: Wraps external textures (e.g. render targets) with custom view and sampler configurations.
 
 ### `wshader.ts`
 
@@ -48,8 +48,8 @@ export class WgpuShader extends GpuShader<WgpuShaderPayload> {
 }
 ```
 
-* **`constructor(circuit)`**: Compiles the `ShaderCircuit` directly to WGSL and sets up pipeline layouts on initialization.
-* **`invalidateGpu()`**: Discards cached pipelines to force hardware pipeline recreation upon parameter or circuit changes.
+- **`constructor(circuit)`**: Compiles the `ShaderCircuit` directly to WGSL and sets up pipeline layouts on initialization.
+- **`invalidateGpu()`**: Discards cached pipelines to force hardware pipeline recreation upon parameter or circuit changes.
 
 ### `wgsl.ts`
 

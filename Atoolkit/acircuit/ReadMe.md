@@ -38,7 +38,7 @@ export class Asocket {
 }
 ```
 
-* **`metadata`**: Extensible dictionary for attached validation rules, data types, or configuration properties.
+- **`metadata`**: Extensible dictionary for attached validation rules, data types, or configuration properties.
 
 ### 2. Awire & Packet
 
@@ -59,8 +59,8 @@ export interface Packet<T = any, TData = any> {
 }
 ```
 
-* **`data`**: Optional typed payload attached to the connection, accessible by input nodes during execution.
-* **`Packet`**: Delivery container pairing transmission value with originating `Awire`. Sockets configured for multiple inputs receive `Packet[]`, preserving wire metadata for sorting.
+- **`data`**: Optional typed payload attached to the connection, accessible by input nodes during execution.
+- **`Packet`**: Delivery container pairing transmission value with originating `Awire`. Sockets configured for multiple inputs receive `Packet[]`, preserving wire metadata for sorting.
 
 ### 3. Acnode
 
@@ -90,9 +90,9 @@ export abstract class Acnode {
 }
 ```
 
-* **`allowMultipleInput(socketName)`**: Controls whether an input socket permits multi-wire fan-in (defaults to `false`). When `true`, receives `Packet[]` arrays during execution.
-* **`canConnectInput(inSocketName, outNode, outSocketName, data?)`**: Validation gate invoked by `circuit.connect()` prior to establishing a wire. Returns `false` to reject incompatible connections.
-* **`process(packets, ctx)`**: Core evaluation hook. Receives input `Packet` structures and execution context, returning an object mapping output socket names to computed values.
+- **`allowMultipleInput(socketName)`**: Controls whether an input socket permits multi-wire fan-in (defaults to `false`). When `true`, receives `Packet[]` arrays during execution.
+- **`canConnectInput(inSocketName, outNode, outSocketName, data?)`**: Validation gate invoked by `circuit.connect()` prior to establishing a wire. Returns `false` to reject incompatible connections.
+- **`process(packets, ctx)`**: Core evaluation hook. Receives input `Packet` structures and execution context, returning an object mapping output socket names to computed values.
 
 ### 4. Acircuit
 
@@ -130,10 +130,10 @@ export class Acircuit {
 }
 ```
 
-* **`connect<TData>(outNode, outSocket, inNode, inSocket, data?)`**: Validates socket existence and node connectivity hooks (`canConnectInput`), automatically disconnects prior wires unless `allowMultipleInput` is enabled, and returns the tracking `Awire<TData>`.
-* **`disconnect(wireOrNodeId, inSocketName?)`**: Polymorphic unlinking accepting either a direct `Awire` reference or an `(inNodeId, inSocketName)` pair.
-* **`topoSort<T>()`**: Evaluates dependency chains using Kahn's algorithm based on active wire maps. Throws an error immediately upon cycle detection.
-* **`run<TCtx>(options?)` / `process<TCtx>(options?)`**: Executes nodes in topological sequence. `options.overrides` injects initial values directly into input sockets, and `options.ctx` forwards mutable user state to `process()`. Returns `RunResult<TNode>` (`outputs`, `orderedNodes`, `errors`).
+- **`connect<TData>(outNode, outSocket, inNode, inSocket, data?)`**: Validates socket existence and node connectivity hooks (`canConnectInput`), automatically disconnects prior wires unless `allowMultipleInput` is enabled, and returns the tracking `Awire<TData>`.
+- **`disconnect(wireOrNodeId, inSocketName?)`**: Polymorphic unlinking accepting either a direct `Awire` reference or an `(inNodeId, inSocketName)` pair.
+- **`topoSort<T>()`**: Evaluates dependency chains using Kahn's algorithm based on active wire maps. Throws an error immediately upon cycle detection.
+- **`run<TCtx>(options?)` / `process<TCtx>(options?)`**: Executes nodes in topological sequence. `options.overrides` injects initial values directly into input sockets, and `options.ctx` forwards mutable user state to `process()`. Returns `RunResult<TNode>` (`outputs`, `orderedNodes`, `errors`).
 
 ---
 

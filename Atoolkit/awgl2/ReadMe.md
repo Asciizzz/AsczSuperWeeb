@@ -162,9 +162,9 @@ interface Awgl2Ctx {
 }
 ```
 
-* **`passKind`**: Discriminator identifying active render pass state, preventing nested or conflicting passes.
-* **`buffers`**: State map of currently bound vertex buffers and attached index buffer layout.
-* **`textures`**: Cache of active texture units to prevent redundant `gl.activeTexture` and bind calls.
+- **`passKind`**: Discriminator identifying active render pass state, preventing nested or conflicting passes.
+- **`buffers`**: State map of currently bound vertex buffers and attached index buffer layout.
+- **`textures`**: Cache of active texture units to prevent redundant `gl.activeTexture` and bind calls.
 
 ### `Backend`
 Initializes WebGL2 on the target canvas and manages resizing:

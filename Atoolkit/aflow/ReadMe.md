@@ -124,10 +124,10 @@ export class Aflow<TCtx = unknown> {
 }
 ```
 
-* **`addLink(srcId, dstId, options?)`**: Inserts a directed link, verifying acyclic invariants via `Adag`. Attaches optional traversal metadata via `options.data`.
-* **`sortOutgoingLinks(nodeId, sortFn)`**: Enforces branch execution priority by sorting outgoing edges in place.
-* **`run(from, options?)`**: Executes DFS traversal. Passes mutable `options.ctx` and `options.diag` through component payloads. `visitMode` controls whether shared nodes execute once globally (`"once"`) or per-branch with backtracking (`"path"`).
-* **`dryRun(fromNodeId, options?)`**: Simulates traversal and evaluates conditional link predicates without executing component payloads.
+- **`addLink(srcId, dstId, options?)`**: Inserts a directed link, verifying acyclic invariants via `Adag`. Attaches optional traversal metadata via `options.data`.
+- **`sortOutgoingLinks(nodeId, sortFn)`**: Enforces branch execution priority by sorting outgoing edges in place.
+- **`run(from, options?)`**: Executes DFS traversal. Passes mutable `options.ctx` and `options.diag` through component payloads. `visitMode` controls whether shared nodes execute once globally (`"once"`) or per-branch with backtracking (`"path"`).
+- **`dryRun(fromNodeId, options?)`**: Simulates traversal and evaluates conditional link predicates without executing component payloads.
 
 ```ts
 export interface AflowLinkData {
@@ -138,5 +138,5 @@ export interface AflowLinkData {
 }
 ```
 
-* **`kind`**: Traversal strategy. `"conditional"` evaluates `when(ctx)`, `"skip"` maintains topology while bypassing traversal, and `"once"` executes only on the initial run.
-* **`enabled`**: Setting `false` bypasses edge traversal unconditionally.
+- **`kind`**: Traversal strategy. `"conditional"` evaluates `when(ctx)`, `"skip"` maintains topology while bypassing traversal, and `"once"` executes only on the initial run.
+- **`enabled`**: Setting `false` bypasses edge traversal unconditionally.

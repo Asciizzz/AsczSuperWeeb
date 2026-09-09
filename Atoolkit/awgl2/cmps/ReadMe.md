@@ -24,14 +24,14 @@ cmp.exec(ctx, diag);
 new BeginFrame()
 ```
 
-* Resets per-frame context state: empties vertex/texture mappings, clears active program/VAO/framebuffer handles, and sets `ended = false`.
+- Resets per-frame context state: empties vertex/texture mappings, clears active program/VAO/framebuffer handles, and sets `ended = false`.
 
 ### `EndFrame`
 ```ts
 new EndFrame()
 ```
 
-* Flushes the WebGL command queue via `ctx.gl.flush()` and sets `ctx.ended = true`.
+- Flushes the WebGL command queue via `ctx.gl.flush()` and sets `ctx.ended = true`.
 
 ---
 
@@ -54,15 +54,15 @@ interface RenderPassData {
 }
 ```
 
-* **`framebuffer`**: Target framebuffer handle; `null` targets the default canvas backbuffer.
-* **`scissor`**: Optional viewport scissor rectangle constraining draw and clear operations.
+- **`framebuffer`**: Target framebuffer handle; `null` targets the default canvas backbuffer.
+- **`scissor`**: Optional viewport scissor rectangle constraining draw and clear operations.
 
 ### `EndPass`
 ```ts
 new EndPass()
 ```
 
-* Unbinds the active framebuffer to target the canvas default buffer and resets active pass state on `ctx`.
+- Unbinds the active framebuffer to target the canvas default buffer and resets active pass state on `ctx`.
 
 ---
 
@@ -73,7 +73,7 @@ new EndPass()
 new UseProgram(program: WebGLProgram | null)
 ```
 
-* Binds the program via `gl.useProgram(program)` and updates `ctx.program`.
+- Binds the program via `gl.useProgram(program)` and updates `ctx.program`.
 
 ---
 
@@ -91,8 +91,8 @@ interface SetBuffersData {
 }
 ```
 
-* **`vao`**: Preconfigured vertex array object; binds attribute pointers and layout directly.
-* **`vertex`** / **`index`**: Direct buffer bindings applied when bypassing an existing VAO handle.
+- **`vao`**: Preconfigured vertex array object; binds attribute pointers and layout directly.
+- **`vertex`** / **`index`**: Direct buffer bindings applied when bypassing an existing VAO handle.
 
 ---
 
@@ -111,7 +111,7 @@ interface TextureEntry {
 }
 ```
 
-* **`uniform`**: Sampler uniform name on the active program; automatically writes the assigned texture unit index.
+- **`uniform`**: Sampler uniform name on the active program; automatically writes the assigned texture unit index.
 
 ---
 
@@ -139,7 +139,7 @@ type UniformEntry = {
 );
 ```
 
-* **`transpose`**: Specifies whether matrix values (`mat2`, `mat3`, `mat4`) are transposed during upload (defaults to `false`).
+- **`transpose`**: Specifies whether matrix values (`mat2`, `mat3`, `mat4`) are transposed during upload (defaults to `false`).
 
 ---
 
@@ -159,7 +159,7 @@ interface DrawData {
 }
 ```
 
-* Dispatches `gl.drawArraysInstanced` or `gl.drawArrays`.
+- Dispatches `gl.drawArraysInstanced` or `gl.drawArrays`.
 
 ### `DrawIndexed`
 ```ts
@@ -175,4 +175,4 @@ interface DrawIndexedData {
 }
 ```
 
-* Dispatches `gl.drawElementsInstanced` or `gl.drawElements`.
+- Dispatches `gl.drawElementsInstanced` or `gl.drawElements`.

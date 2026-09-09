@@ -39,9 +39,9 @@ export class GpuMesh<TBackend = unknown> {
 }
 ```
 
-* **`backend`**: Hardware-specific buffer container (e.g. `WgpuMeshPayload` or `GLMeshPayload`).
-* **`stride`**: Interleaved vertex byte width (typically 32 bytes for static geometry, 64 bytes for skinned meshes).
-* **`submeshes`**: Index ranges and material slot mappings for multi-material draw calls.
+- **`backend`**: Hardware-specific buffer container (e.g. `WgpuMeshPayload` or `GLMeshPayload`).
+- **`stride`**: Interleaved vertex byte width (typically 32 bytes for static geometry, 64 bytes for skinned meshes).
+- **`submeshes`**: Index ranges and material slot mappings for multi-material draw calls.
 
 ```ts
 export class GpuTexture<TBackend = unknown> {
@@ -55,8 +55,8 @@ export class GpuTexture<TBackend = unknown> {
 }
 ```
 
-* **`backend`**: Hardware-specific texture and sampler container (e.g. `WgpuTexturePayload`).
-* **`gpuOwned`**: Lifecycle flag indicating whether destroying this handle releases the underlying GPU allocation.
+- **`backend`**: Hardware-specific texture and sampler container (e.g. `WgpuTexturePayload`).
+- **`gpuOwned`**: Lifecycle flag indicating whether destroying this handle releases the underlying GPU allocation.
 
 ```ts
 export class GpuShader<TBackend = unknown> {
@@ -73,9 +73,9 @@ export class GpuShader<TBackend = unknown> {
 }
 ```
 
-* **`circuit`**: Pure CPU computation circuit defining node connectivity and math operations.
-* **`paramLayout`**: Memory layout descriptor declaring uniform buffer offsets and texture slot assignments.
-* **`createDefaultParams()`**: Clones default parameter values into a fresh dictionary for shader assignment.
+- **`circuit`**: Pure CPU computation circuit defining node connectivity and math operations.
+- **`paramLayout`**: Memory layout descriptor declaring uniform buffer offsets and texture slot assignments.
+- **`createDefaultParams()`**: Clones default parameter values into a fresh dictionary for shader assignment.
 
 Ergonomic aliases `GMesh`, `GTexture`, `GShader`, and `Shader` map directly to these universal handles.
 

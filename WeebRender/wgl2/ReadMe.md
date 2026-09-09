@@ -23,8 +23,8 @@ export class GLMesh extends GpuMesh<GLMeshPayload> {
 }
 ```
 
-* **`fromMesh(...)`**: Configures vertex attribute pointers from `VertexAttribute` metadata and uploads buffer data.
-* **`ref(...)`**: Wraps external VAO and buffer handles without taking ownership of underlying allocations.
+- **`fromMesh(...)`**: Configures vertex attribute pointers from `VertexAttribute` metadata and uploads buffer data.
+- **`ref(...)`**: Wraps external VAO and buffer handles without taking ownership of underlying allocations.
 
 ### `gltexture.ts`
 
@@ -37,8 +37,8 @@ export class GLTexture extends GpuTexture<GLTexturePayload> {
 }
 ```
 
-* **`fromTexture(...)`**: Allocates a 2D texture, sets minification, magnification, and wrap parameters, and uploads pixel buffers.
-* **`ref(...)`**: Wraps external WebGL textures such as framebuffer attachment targets.
+- **`fromTexture(...)`**: Allocates a 2D texture, sets minification, magnification, and wrap parameters, and uploads pixel buffers.
+- **`ref(...)`**: Wraps external WebGL textures such as framebuffer attachment targets.
 
 ### `glshader.ts`
 
@@ -51,8 +51,8 @@ export class GLShader extends GpuShader<GLShaderPayload> {
 }
 ```
 
-* **`constructor(circuit)`**: Compiles the `ShaderCircuit` into GLSL ES 3.0 programs and sets up uniform block layouts.
-* **`invalidateGpu()`**: Discards compiled program caches to force recreation upon parameter or circuit modification.
+- **`constructor(circuit)`**: Compiles the `ShaderCircuit` into GLSL ES 3.0 programs and sets up uniform block layouts.
+- **`invalidateGpu()`**: Discards compiled program caches to force recreation upon parameter or circuit modification.
 
 ### `glsl.ts`
 

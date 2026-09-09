@@ -71,11 +71,11 @@ export class Aecs {
 }
 ```
 
-* **`spawn(...components)`**: Allocates a packed 32-bit entity identifier (`Aent`), reusing recycled slot indices before expanding capacity.
-* **`kill(entity)`**: Purges all attached components from sparse sets, increments slot generation counter, and pushes index to the recycling pool.
-* **`isAlive(entity)`**: O(1) generational validation comparing the identifier's generation against current slot state.
-* **`clearComponents(entity)`**: Removes all attached components from sparse sets while preserving entity identity and lifecycle state.
-* **`execEntity(entity, ctx, diag?)`**: Invokes `cmp.exec(ctx, diag)` sequentially across all components attached to the entity.
+- **`spawn(...components)`**: Allocates a packed 32-bit entity identifier (`Aent`), reusing recycled slot indices before expanding capacity.
+- **`kill(entity)`**: Purges all attached components from sparse sets, increments slot generation counter, and pushes index to the recycling pool.
+- **`isAlive(entity)`**: O(1) generational validation comparing the identifier's generation against current slot state.
+- **`clearComponents(entity)`**: Removes all attached components from sparse sets while preserving entity identity and lifecycle state.
+- **`execEntity(entity, ctx, diag?)`**: Invokes `cmp.exec(ctx, diag)` sequentially across all components attached to the entity.
 
 ```ts
 export class Aquery<TInstances extends readonly any[] = any[]> implements Iterable<[Aent, ...TInstances]> {
@@ -90,10 +90,10 @@ export class Aquery<TInstances extends readonly any[] = any[]> implements Iterab
 }
 ```
 
-* **`[Symbol.iterator]`**: Uses the smallest sparse set among required and `.with` types to drive the iteration loop, evaluating secondary criteria in O(1) time.
-* **`.with(...types)`**: Requires component presence without yielding instances in the result tuple. Serves as driver loop if smaller than required stores.
-* **`.without(...types)`**: O(1) exclusion filter skipping entities holding any specified component types.
-* **`.some(...types)`**: Requires presence of at least one component from the set.
+- **`[Symbol.iterator]`**: Uses the smallest sparse set among required and `.with` types to drive the iteration loop, evaluating secondary criteria in O(1) time.
+- **`.with(...types)`**: Requires component presence without yielding instances in the result tuple. Serves as driver loop if smaller than required stores.
+- **`.without(...types)`**: O(1) exclusion filter skipping entities holding any specified component types.
+- **`.some(...types)`**: Requires presence of at least one component from the set.
 
 ---
 

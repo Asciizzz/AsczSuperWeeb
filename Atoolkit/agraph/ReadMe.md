@@ -68,11 +68,11 @@ export class Agraph<NData = unknown, EData = unknown> {
 }
 ```
 
-* **`popNode(id)`**: Unlinks all incident incoming and outgoing edges before removing and returning the node.
-* **`hasPath(srcId, dstId)`**: BFS reachability check determining whether a directed path exists from source to destination.
-* **`topoSort()`**: Kahn topological sort with dirty-flag cache invalidation. Returns sorted array or null if cycles exist.
-* **`topoLayers()`**: Partitions nodes into dependency generations (`Anode[][]`) where nodes in the same tier can execute concurrently.
-* **`subgraph(nodeIds)`**: Extracts an isolated `Agraph` containing only the specified nodes and edges connecting them.
+- **`popNode(id)`**: Unlinks all incident incoming and outgoing edges before removing and returning the node.
+- **`hasPath(srcId, dstId)`**: BFS reachability check determining whether a directed path exists from source to destination.
+- **`topoSort()`**: Kahn topological sort with dirty-flag cache invalidation. Returns sorted array or null if cycles exist.
+- **`topoLayers()`**: Partitions nodes into dependency generations (`Anode[][]`) where nodes in the same tier can execute concurrently.
+- **`subgraph(nodeIds)`**: Extracts an isolated `Agraph` containing only the specified nodes and edges connecting them.
 
 ---
 
@@ -87,8 +87,8 @@ export class Adag {
 }
 ```
 
-* **`addEdge(...)`**: Validates whether inserting the edge would create a cycle using backwards reachability, returning `null` on cycle violation.
-* **`assertDag(...)`**: Validates the entire graph is acyclic via topological sort, returning `true` or `null`.
+- **`addEdge(...)`**: Validates whether inserting the edge would create a cycle using backwards reachability, returning `null` on cycle violation.
+- **`assertDag(...)`**: Validates the entire graph is acyclic via topological sort, returning `true` or `null`.
 
 Diamond DAGs (where branches diverge from a parent and converge on a child) are valid acyclic graphs because no backward paths exist.
 
@@ -104,6 +104,6 @@ export class Atree {
 }
 ```
 
-* **`move(...)`**: Reparents a node by replacing its incoming edge, verifying that the target parent is not a descendant to prevent cycle formation.
-* **`lca(...)`**: Finds the lowest common ancestor node between two nodes, returning `null` if they reside in disconnected trees.
-* **`assertTree(...)`**: Enforces single-parent tree or forest invariants.
+- **`move(...)`**: Reparents a node by replacing its incoming edge, verifying that the target parent is not a descendant to prevent cycle formation.
+- **`lca(...)`**: Finds the lowest common ancestor node between two nodes, returning `null` if they reside in disconnected trees.
+- **`assertTree(...)`**: Enforces single-parent tree or forest invariants.
