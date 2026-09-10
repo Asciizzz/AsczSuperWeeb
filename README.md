@@ -19,7 +19,7 @@ AsczSuperWeeb is divided into two distinct architectural layers:
 AsczSuperWeeb/
 ├── Atoolkit/
 │   ├── acmp/          # Declarative component metadata and bitmask indexing
-│   ├── adataflow/     # Reactive data-driven computation graph with dirty caching
+│   ├── acircuit/      # Stateless socket circuit with topological execution
 │   ├── adiag/         # Zero-overhead diagnostic assertions and runtime contracts
 │   ├── aecs/          # High-performance cache-coherent Sparse-Set ECS
 │   ├── aflow/         # Topological DAG execution pipeline and scheduler

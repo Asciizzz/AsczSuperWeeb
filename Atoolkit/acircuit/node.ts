@@ -2,7 +2,7 @@ import { Asocket } from "./socket.js";
 import type { ProcessCtx } from "./types.js";
 
 /**
- * Computational unit in an Acircuit computation graph with input and output sockets.
+ * Stateless computational unit with 1-to-1 input sockets and 1-to-N output sockets.
  */
 export abstract class Acnode {
     readonly id: string;
@@ -10,35 +10,31 @@ export abstract class Acnode {
     readonly inputs = new Map<string, Asocket>();
     readonly outputs = new Map<string, Asocket>();
 
-    /**
-     * Optional metadata associated with the node.
-     */
-    metadata: Record<string, unknown> = {};
-
     constructor(id: string, name: string) {
         this.id = id;
         this.name = name;
     }
 
+    /**
+     * Registers an input socket.
+     */
     addInput(socketOrName: Asocket | string): this {
-        const socket = typeof socketOrName === "string" ? new Asocket(socketOrName) : socketOrName;
+        const socket = typeof socketOrName === "string" ? new Asocket(socketOrName, "input") : socketOrName;
         this.inputs.set(socket.name, socket);
         return this;
     }
 
+    /**
+     * Registers an output socket.
+     */
     addOutput(socketOrName: Asocket | string): this {
-        const socket = typeof socketOrName === "string" ? new Asocket(socketOrName) : socketOrName;
+        const socket = typeof socketOrName === "string" ? new Asocket(socketOrName, "output") : socketOrName;
         this.outputs.set(socket.name, socket);
         return this;
     }
 
-    hasInput(name: string): boolean {
-        return this.inputs.has(name);
-    }
-
-    hasOutput(name: string): boolean {
-        return this.outputs.has(name);
-    }
+    hasInput(name: string): boolean { return this.inputs.has(name); }
+    hasOutput(name: string): boolean { return this.outputs.has(name); }
 
     getInput<T extends Asocket = Asocket>(name: string): T | undefined {
         return this.inputs.get(name) as T | undefined;
@@ -49,36 +45,23 @@ export abstract class Acnode {
     }
 
     /**
-     * Check whether an input socket accepts multiple incoming wires.
-     * Defaults to false (single writer per input socket).
-     * Subclasses can override this to return true for multi-wire fan-in.
-     */
-    allowMultipleInput(socketName: string): boolean {
-        return false;
-    }
-
-    /**
-     * Hook to validate incoming connections before wiring.
-     * Subclasses can inspect the source outNode, outSocket, and wire data to permit or reject wires.
+     * Connection validation gate invoked prior to establishing a wire.
      */
     canConnectInput(
         inSocketName: string,
         outNode: Acnode,
-        outSocketName: string,
-        data?: any
+        outSocketName: string
     ): boolean {
         return true;
     }
 
     /**
-     * Primary circuit processing method.
-     * Receives incoming transmission packets (value + wire) and execution context.
-     * Returns an object mapping output socket names to computed values.
+     * Evaluates the node from one execution's resolved input values.
+     * Input and output values belong to the circuit run, not to the node.
      */
-    process?(
-        packets: Record<string, any>,
+    abstract process(
+        inputs: Record<string, any>,
         ctx?: ProcessCtx<any>
-    ): Record<string, any> | void;
+    ): Record<string, any>;
 }
 
-export { Acnode as AcircuitNode };

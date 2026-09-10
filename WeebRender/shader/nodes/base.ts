@@ -18,6 +18,7 @@ export interface ShaderNodeMetadata {
 export abstract class ShaderNode extends Acnode {
     displayName: string;
     category: NodeCategory;
+    metadata: Record<string, unknown> = {};
 
     constructor(id: string, name: string, meta?: ShaderNodeMetadata) {
         super(id, name);
@@ -53,5 +54,12 @@ export abstract class ShaderNode extends Acnode {
             }
         }
         return true;
+    }
+
+    /**
+     * Shader nodes describe compiler expressions and do not execute as runtime values.
+     */
+    override process(): Record<string, any> {
+        return {};
     }
 }

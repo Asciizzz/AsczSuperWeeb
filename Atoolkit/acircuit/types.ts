@@ -3,43 +3,37 @@ import type { Awire } from "./wire.js";
 export type { Awire };
 
 /**
- * Incoming transmission package delivering a computed value alongside its originating wire.
+ * Execution context passed to node.process(inputs, ctx).
  */
-export interface Packet<T = any, TData = any> {
-    value: T;
-    wire?: Awire<TData>;
+export interface ProcessCtx<TCtx = unknown> {
+    /** User context forwarded through execution */
+    ctx?: TCtx;
 }
 
 /**
- * Execution context forwarded to node.process(packets, ctx).
+ * Configuration for topological runs.
  */
-export interface ProcessCtx<TCtx = unknown> {
-    /** Optional user context passed through the graph run */
-    ctx?: TCtx;
-    /** Unique identifier prefix for this node instance. */
-    varPrefix: string;
-    /** Arbitrary user-defined execution metadata */
-    meta?: Record<string, unknown>;
-}
-
 export interface RunOptions<TCtx = unknown, TNode = unknown> {
-    /** Initial socket overrides: { [nodeId]: { [socketName]: value } } */
-    overrides?: Record<string, Record<string, any>>;
-    /** Optional user context forwarded to node.process(packets, ctx) */
+    /** User context forwarded to node.process(inputs, ctx) */
     ctx?: TCtx;
-    /** Arbitrary metadata forwarded to node context */
-    meta?: Record<string, unknown>;
-    /** Optional callback invoked before a node processes */
-    onNodeEnter?: (node: TNode, packets: Record<string, any>) => void;
-    /** Optional callback invoked after a node processes */
+    /** Initial input socket values: { [nodeId]: { [socketName]: value } } */
+    overrides?: Record<string, Record<string, any>>;
+    /** Callback invoked before node execution */
+    onNodeEnter?: (node: TNode, inputs: Record<string, any>) => void;
+    /** Callback invoked after node execution */
     onNodeLeave?: (node: TNode, outputs: Record<string, any>) => void;
+    /** Callback invoked on wire value resolution */
+    onWireTransmit?: (wire: Awire, value: any) => void;
 }
 
+/**
+ * Result of a circuit execution run.
+ */
 export interface RunResult<TNode = unknown> {
-    /** Node ID -> { [socketName]: outputValue } */
+    /** Mapping of node ID to computed output socket records */
     outputs: Map<string, Record<string, any>>;
-    /** Nodes traversed in topological execution order */
-    orderedNodes: TNode[];
-    /** Any non-fatal caught errors */
+    /** Nodes executed in topological order */
+    executedNodes: TNode[];
+    /** Caught execution errors */
     errors: Array<{ nodeId: string; error: unknown }>;
 }

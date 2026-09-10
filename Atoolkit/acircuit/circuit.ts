@@ -1,24 +1,31 @@
 import { Acnode } from "./node.js";
-import type { Awire } from "./wire.js";
+import {
+    type Awire,
+    inSocketKey,
+    outSocketKey,
+    wireEquals,
+} from "./wire.js";
 import type {
-    Packet,
+    ProcessCtx,
     RunOptions,
     RunResult,
-    ProcessCtx,
 } from "./types.js";
 
 export interface AcircuitOptions {
     label?: string;
 }
 
-export class Acircuit {    
+/**
+ * Directed graph with 1-to-1 input wires and 1-to-N output fan-out.
+ * Node values exist only in the scope of a run.
+ */
+export class Acircuit {
     readonly label: string;
     readonly nodes = new Map<string, Acnode>();
 
-    /** Inward wires: "inNodeId:inSocket" -> Awire[] */
-    private readonly _inWires = new Map<string, Awire[]>();
-
-    /** Outward wires: "outNodeId:outSocket" -> Awire[] */
+    /** Inward wires:  "inNodeId:inSocket"   -> Awire (1-to-1). */
+    private readonly _inWires  = new Map<string, Awire>();
+    /** Outward wires: "outNodeId:outSocket" -> Awire[] (1-to-N). */
     private readonly _outWires = new Map<string, Awire[]>();
 
     constructor(options: AcircuitOptions = {}) {
@@ -26,8 +33,7 @@ export class Acircuit {
     }
 
     addNode(node: Acnode): this {
-        if (this.nodes.has(node.id)) return this;
-        this.nodes.set(node.id, node);
+        if (!this.nodes.has(node.id)) this.nodes.set(node.id, node);
         return this;
     }
 
@@ -47,197 +53,109 @@ export class Acircuit {
     }
 
     /**
-     * Connects an output socket to an input socket.
-     * Returns the created Awire instance.
+     * Connects an output socket to an input socket, replacing any existing
+     * connection on the destination input.
      */
-    connect<TData = any>(
+    connect(
         outNodeOrId: Acnode | string,
         outSocketName: string,
         inNodeOrId: Acnode | string,
-        inSocketName: string,
-        data?: TData
-    ): Awire<TData> {
+        inSocketName: string
+    ): Awire {
         const outNode = typeof outNodeOrId === "string" ? this.getNode(outNodeOrId) : outNodeOrId;
         const inNode = typeof inNodeOrId === "string" ? this.getNode(inNodeOrId) : inNodeOrId;
 
         if (!outNode) throw new Error(`[Acircuit] Output node "${String(outNodeOrId)}" not found in graph.`);
         if (!inNode) throw new Error(`[Acircuit] Input node "${String(inNodeOrId)}" not found in graph.`);
 
-        if (!this.hasNode(outNode.id)) this.addNode(outNode);
-        if (!this.hasNode(inNode.id)) this.addNode(inNode);
+        this.addNode(outNode);
+        this.addNode(inNode);
 
-        const outSocketObj = outNode.getOutput(outSocketName);
-        if (!outSocketObj) throw new Error(`[Acircuit] Node "${outNode.id}" has no output socket named "${outSocketName}".`);
-
-        const inSocketObj = inNode.getInput(inSocketName);
-        if (!inSocketObj) throw new Error(`[Acircuit] Node "${inNode.id}" has no input socket named "${inSocketName}".`);
-
-        if (inNode.canConnectInput && !inNode.canConnectInput(inSocketName, outNode, outSocketName, data)) {
+        if (!outNode.getOutput(outSocketName)) {
+            throw new Error(`[Acircuit] Node "${outNode.id}" has no output socket named "${outSocketName}".`);
+        }
+        if (!inNode.getInput(inSocketName)) {
+            throw new Error(`[Acircuit] Node "${inNode.id}" has no input socket named "${inSocketName}".`);
+        }
+        if (!inNode.canConnectInput(inSocketName, outNode, outSocketName)) {
             throw new Error(`[Acircuit] Connection rejected by node "${inNode.id}" on input socket "${inSocketName}".`);
         }
 
-        const allowMultiple = inNode.allowMultipleInput ? inNode.allowMultipleInput(inSocketName) : false;
-        if (!allowMultiple) {
-            this.disconnect(inNode.id, inSocketName);
-        }
+        this.disconnect(inNode.id, inSocketName);
 
-        const wire: Awire<TData> = {
+        const wire: Awire = {
             outNodeId: outNode.id,
             outSocket: outSocketName,
             inNodeId: inNode.id,
             inSocket: inSocketName,
-            data,
         };
 
-        const inKey = `${inNode.id}:${inSocketName}`;
-        const inList = this._inWires.get(inKey);
-        if (inList) {
-            inList.push(wire);
-        } else {
-            this._inWires.set(inKey, [wire]);
-        }
-
-        const outKey = `${outNode.id}:${outSocketName}`;
-        const outList = this._outWires.get(outKey);
-        if (outList) {
-            outList.push(wire);
-        } else {
-            this._outWires.set(outKey, [wire]);
-        }
-
+        this._inWires.set(inSocketKey(inNode.id, inSocketName), wire);
+        const outKey = outSocketKey(outNode.id, outSocketName);
+        const outWires = this._outWires.get(outKey);
+        if (outWires) outWires.push(wire);
+        else this._outWires.set(outKey, [wire]);
         return wire;
     }
 
-    /**
-     * Disconnects a specific Awire, or all wires on a given input socket.
-     */
     disconnect(wireOrNodeId: Awire | Acnode | string, inSocketName?: string): boolean {
+        let wire: Awire | undefined;
         if (typeof wireOrNodeId === "object" && "outNodeId" in wireOrNodeId) {
-            const wire = wireOrNodeId as Awire;
-            let removed = false;
-
-            const inKey = `${wire.inNodeId}:${wire.inSocket}`;
-            const inList = this._inWires.get(inKey);
-            if (inList) {
-                const idx = inList.indexOf(wire);
-                if (idx >= 0) {
-                    inList.splice(idx, 1);
-                    removed = true;
-                    if (inList.length === 0) this._inWires.delete(inKey);
-                }
-            }
-
-            const outKey = `${wire.outNodeId}:${wire.outSocket}`;
-            const outList = this._outWires.get(outKey);
-            if (outList) {
-                const idx = outList.indexOf(wire);
-                if (idx >= 0) {
-                    outList.splice(idx, 1);
-                    removed = true;
-                    if (outList.length === 0) this._outWires.delete(outKey);
-                }
-            }
-
-            return removed;
+            wire = wireOrNodeId;
+        } else if (inSocketName !== undefined) {
+            const nodeId = typeof wireOrNodeId === "string" ? wireOrNodeId : wireOrNodeId.id;
+            wire = this._inWires.get(inSocketKey(nodeId, inSocketName));
         }
+        if (!wire) return false;
 
-        const inId = typeof wireOrNodeId === "string" ? wireOrNodeId : wireOrNodeId.id;
-        if (!inSocketName) return false;
-
-        const inKey = `${inId}:${inSocketName}`;
-        const wires = this._inWires.get(inKey);
-        if (!wires || wires.length === 0) return false;
-
-        for (const wire of wires) {
-            const outKey = `${wire.outNodeId}:${wire.outSocket}`;
-            const outList = this._outWires.get(outKey);
-            if (outList) {
-                const idx = outList.indexOf(wire);
-                if (idx >= 0) outList.splice(idx, 1);
-                if (outList.length === 0) this._outWires.delete(outKey);
-            }
+        this._inWires.delete(inSocketKey(wire.inNodeId, wire.inSocket));
+        const outKey = outSocketKey(wire.outNodeId, wire.outSocket);
+        const outWires = this._outWires.get(outKey);
+        if (outWires) {
+            const index = outWires.findIndex(candidate => wireEquals(candidate, wire!));
+            if (index >= 0) outWires.splice(index, 1);
+            if (outWires.length === 0) this._outWires.delete(outKey);
         }
-        return this._inWires.delete(inKey);
+        return true;
     }
 
     disconnectAll(nodeOrId: Acnode | string): this {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
-
-        for (const [inKey, wires] of Array.from(this._inWires.entries())) {
-            if (wires[0]?.inNodeId === id) {
-                for (const wire of wires) {
-                    const outKey = `${wire.outNodeId}:${wire.outSocket}`;
-                    const outList = this._outWires.get(outKey);
-                    if (outList) {
-                        const idx = outList.indexOf(wire);
-                        if (idx >= 0) outList.splice(idx, 1);
-                        if (outList.length === 0) this._outWires.delete(outKey);
-                    }
-                }
-                this._inWires.delete(inKey);
-            }
-        }
-
-        for (const [outKey, wires] of Array.from(this._outWires.entries())) {
-            if (wires[0]?.outNodeId === id) {
-                for (const wire of wires) {
-                    const inKey = `${wire.inNodeId}:${wire.inSocket}`;
-                    const inList = this._inWires.get(inKey);
-                    if (inList) {
-                        const idx = inList.indexOf(wire);
-                        if (idx >= 0) inList.splice(idx, 1);
-                        if (inList.length === 0) this._inWires.delete(inKey);
-                    }
-                }
-                this._outWires.delete(outKey);
-            }
-        }
-
+        for (const wire of this.getIncomingWires(id)) this.disconnect(wire);
+        for (const wire of this.getOutgoingWires(id)) this.disconnect(wire);
         return this;
     }
 
     getIncomingWire(nodeOrId: Acnode | string, socketName: string): Awire | undefined {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
-        const wires = this._inWires.get(`${id}:${socketName}`);
-        return wires && wires.length > 0 ? wires[0] : undefined;
+        return this._inWires.get(inSocketKey(id, socketName));
     }
 
-    getIncomingWires(nodeOrId: Acnode | string, socketName?: string): Awire[] {
+    getIncomingWires(nodeOrId: Acnode | string): Awire[] {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
-        if (socketName) {
-            return this._inWires.get(`${id}:${socketName}`) ?? [];
-        }
         const result: Awire[] = [];
-        for (const [key, wires] of this._inWires) {
-            if (key.startsWith(`${id}:`)) {
-                result.push(...wires);
-            }
+        for (const wire of this._inWires.values()) {
+            if (wire.inNodeId === id) result.push(wire);
         }
         return result;
     }
 
     getOutgoingWires(nodeOrId: Acnode | string, socketName?: string): Awire[] {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
-        if (socketName) {
-            return this._outWires.get(`${id}:${socketName}`) ?? [];
-        }
+        if (socketName) return this._outWires.get(outSocketKey(id, socketName)) ?? [];
+
         const result: Awire[] = [];
         for (const [key, wires] of this._outWires) {
-            if (key.startsWith(`${id}:`)) {
-                result.push(...wires);
-            }
+            if (key.startsWith(`${id}:`)) result.push(...wires);
         }
         return result;
     }
 
     getWires(): Awire[] {
-        const result: Awire[] = [];
-        for (const wires of this._inWires.values()) {
-            result.push(...wires);
-        }
-        return result;
+        return Array.from(this._inWires.values());
     }
 
+    /** Returns all nodes in dependency order and rejects cycles. */
     topoSort<T extends Acnode = Acnode>(): T[] {
         const inDeps = new Map<string, Set<string>>();
         const outDeps = new Map<string, Set<string>>();
@@ -246,122 +164,76 @@ export class Acircuit {
             inDeps.set(nodeId, new Set());
             outDeps.set(nodeId, new Set());
         }
-
-        for (const wires of this._inWires.values()) {
-            for (const wire of wires) {
-                if (this.nodes.has(wire.outNodeId) && this.nodes.has(wire.inNodeId)) {
-                    inDeps.get(wire.inNodeId)!.add(wire.outNodeId);
-                    outDeps.get(wire.outNodeId)!.add(wire.inNodeId);
-                }
-            }
+        for (const wire of this._inWires.values()) {
+            if (!this.nodes.has(wire.outNodeId) || !this.nodes.has(wire.inNodeId)) continue;
+            inDeps.get(wire.inNodeId)!.add(wire.outNodeId);
+            outDeps.get(wire.outNodeId)!.add(wire.inNodeId);
         }
 
-        const readyQueue: string[] = [];
-        for (const [nodeId, deps] of inDeps) {
-            if (deps.size === 0) readyQueue.push(nodeId);
+        const ready: string[] = [];
+        for (const [nodeId, dependencies] of inDeps) {
+            if (dependencies.size === 0) ready.push(nodeId);
         }
 
         const sorted: Acnode[] = [];
-        while (readyQueue.length > 0) {
-            const currentId = readyQueue.shift()!;
-            const node = this.nodes.get(currentId);
+        let head = 0;
+        while (head < ready.length) {
+            const nodeId = ready[head++];
+            const node = this.nodes.get(nodeId);
             if (node) sorted.push(node);
 
-            for (const dependentId of outDeps.get(currentId)!) {
-                const depSet = inDeps.get(dependentId)!;
-                depSet.delete(currentId);
-                if (depSet.size === 0) readyQueue.push(dependentId);
+            for (const dependentId of outDeps.get(nodeId)!) {
+                const dependencies = inDeps.get(dependentId)!;
+                dependencies.delete(nodeId);
+                if (dependencies.size === 0) ready.push(dependentId);
             }
         }
 
         if (sorted.length !== this.nodes.size) {
             throw new Error(`[Acircuit] Cyclic dependency detected in graph "${this.label}".`);
         }
-
         return sorted as T[];
     }
 
-    run<TCtx = unknown>(
-        options: RunOptions<TCtx, Acnode> = {}
-    ): RunResult<Acnode> {
-        const sorted = this.topoSort();
-        const nodeOutputs = new Map<string, Record<string, any>>();
+    /** Executes nodes in topological order with run-local input and output values. */
+    run<TCtx = unknown>(options: RunOptions<TCtx, Acnode> = {}): RunResult<Acnode> {
+        const outputs = new Map<string, Record<string, any>>();
+        const executedNodes: Acnode[] = [];
         const errors: Array<{ nodeId: string; error: unknown }> = [];
 
-        for (const node of sorted) {
-            const resolvedPackets: Record<string, any> = {};
-
-            for (const [inputName] of node.inputs) {
-                const isMulti = node.allowMultipleInput ? node.allowMultipleInput(inputName) : false;
-
-                if (options.overrides?.[node.id]?.[inputName] !== undefined) {
-                    const overrideVal = options.overrides[node.id][inputName];
-                    resolvedPackets[inputName] = isMulti
-                        ? [{ value: overrideVal, wire: undefined }]
-                        : { value: overrideVal, wire: undefined };
+        for (const node of this.topoSort<Acnode>()) {
+            const inputs: Record<string, any> = {};
+            for (const socketName of node.inputs.keys()) {
+                const wire = this.getIncomingWire(node, socketName);
+                if (!wire) {
+                    inputs[socketName] = options.overrides?.[node.id]?.[socketName];
                     continue;
                 }
 
-                const wires = this.getIncomingWires(node.id, inputName);
-
-                if (isMulti) {
-                    resolvedPackets[inputName] = wires.map(w => {
-                        const outMap = nodeOutputs.get(w.outNodeId);
-                        return {
-                            value: outMap ? outMap[w.outSocket] : undefined,
-                            wire: w,
-                        } as Packet;
-                    });
-                } else {
-                    if (wires.length > 0) {
-                        const w = wires[0];
-                        const outMap = nodeOutputs.get(w.outNodeId);
-                        resolvedPackets[inputName] = {
-                            value: outMap ? outMap[w.outSocket] : undefined,
-                            wire: w,
-                        } as Packet;
-                    } else {
-                        resolvedPackets[inputName] = undefined;
-                    }
-                }
+                const value = outputs.get(wire.outNodeId)?.[wire.outSocket];
+                inputs[socketName] = value;
+                if (value !== undefined) options.onWireTransmit?.(wire, value);
             }
 
-            options.onNodeEnter?.(node, resolvedPackets);
-
-            const processCtx: ProcessCtx<TCtx> = {
-                ctx: options.ctx,
-                varPrefix: `node_${node.id}`,
-                meta: options.meta,
+            options.onNodeEnter?.(node, inputs);
+            const ctx: ProcessCtx<TCtx> = {
+                ctx: options.ctx
             };
 
-            let outputResult: Record<string, any> | void = undefined;
-            if (typeof node.process === "function") {
-                try {
-                    outputResult = node.process(resolvedPackets, processCtx);
-                    nodeOutputs.set(node.id, outputResult ?? {});
-                } catch (err) {
-                    errors.push({ nodeId: node.id, error: err });
-                    nodeOutputs.set(node.id, {});
-                }
-            } else {
-                nodeOutputs.set(node.id, {});
+            let nodeOutputs: Record<string, any> = {};
+            try {
+                nodeOutputs = node.process(inputs, ctx);
+            } catch (error) {
+                errors.push({ nodeId: node.id, error });
             }
 
-            options.onNodeLeave?.(node, (outputResult as Record<string, any>) ?? {});
+            outputs.set(node.id, nodeOutputs);
+            executedNodes.push(node);
+            options.onNodeLeave?.(node, nodeOutputs);
         }
 
-        return {
-            outputs: nodeOutputs,
-            orderedNodes: sorted,
-            errors,
-        };
+        return { outputs, executedNodes, errors };
     }
 
-    process<TCtx = unknown>(
-        options: RunOptions<TCtx, Acnode> = {}
-    ): RunResult<Acnode> {
-        return this.run(options);
-    }
 }
 
-export { Acircuit as Adataflow, type AcircuitOptions as AdataflowOptions };
