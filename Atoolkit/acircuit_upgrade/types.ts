@@ -6,14 +6,12 @@ export type { Awire };
  * Execution context passed to node.process(inputs, ctx).
  */
 export interface ProcessCtx<TCtx = unknown> {
-    /** User context forwarded through circuit execution */
+    /** User context forwarded through execution */
     ctx?: TCtx;
-    /** Variable prefix derived from node identifier */
-    varPrefix: string;
 }
 
 /**
- * Configuration for topological circuit runs.
+ * Configuration for topological runs.
  */
 export interface RunOptions<TCtx = unknown, TNode = unknown> {
     /** User context forwarded to node.process(inputs, ctx) */

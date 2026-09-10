@@ -23,9 +23,8 @@ export class Acircuit {
     readonly label: string;
     readonly nodes = new Map<string, Acnode>();
 
-    /** Inward wires: "inNodeId:inSocket" -> Awire (1-to-1). */
-    private readonly _inWires = new Map<string, Awire>();
-
+    /** Inward wires:  "inNodeId:inSocket"   -> Awire (1-to-1). */
+    private readonly _inWires  = new Map<string, Awire>();
     /** Outward wires: "outNodeId:outSocket" -> Awire[] (1-to-N). */
     private readonly _outWires = new Map<string, Awire[]>();
 
@@ -218,8 +217,7 @@ export class Acircuit {
 
             options.onNodeEnter?.(node, inputs);
             const ctx: ProcessCtx<TCtx> = {
-                ctx: options.ctx,
-                varPrefix: `node_${node.id}`,
+                ctx: options.ctx
             };
 
             let nodeOutputs: Record<string, any> = {};
@@ -239,4 +237,3 @@ export class Acircuit {
 
 }
 
-export { Acircuit as Adataflow, type AcircuitOptions as AdataflowOptions };

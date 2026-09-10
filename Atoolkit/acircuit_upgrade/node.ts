@@ -65,4 +65,3 @@ export abstract class Acnode {
     ): Record<string, any>;
 }
 
-export { Acnode as AcircuitNode, Acnode as Adfnode };
