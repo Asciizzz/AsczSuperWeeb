@@ -1,6 +1,5 @@
 import type { Aent } from "./Aent.js";
 import { aentIndex } from "./Aent.js";
-import type { Acmp } from "../acmp/index.js";
 
 /**
  * Dense-sparse storage for a single component type.
@@ -8,7 +7,7 @@ import type { Acmp } from "../acmp/index.js";
  * Provides O(1) insertion, lookup, and swap-and-pop deletion.
  * Components are kept tightly packed in the `dense` array for cache-friendly, contiguous iteration.
  */
-export class SparseSet<T extends Acmp = Acmp> {
+export class SparseSet<T extends object = object> {
     /** Tightly packed array of component instances */
     readonly dense: T[] = [];
 

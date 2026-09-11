@@ -1,4 +1,3 @@
-import { Acmp } from "../Atoolkit/acmp/index.js";
 import { Mat4, Vec3, DEG2RAD, type M16, type V3 } from "../Atoolkit/alm/index.js";
 import type { TransformCmp } from "./transform.js";
 
@@ -8,7 +7,7 @@ const DEFAULT_UP: V3 = Vec3(0, 1, 0);
  * Camera ECS component.
  * Stores projection properties, view matrix, and precomputed view-projection matrix.
  */
-export class CameraCmp extends Acmp {
+export class CameraCmp {
     fov: number;             // Vertical FOV in degrees
     aspect: number;          // Viewport aspect ratio (width / height)
     near: number;            // Near clipping plane
@@ -29,7 +28,6 @@ export class CameraCmp extends Acmp {
         isOrthographic = false,
         orthoSize = 5
     ) {
-        super();
         this.fov = fov;
         this.aspect = aspect;
         this.near = near;

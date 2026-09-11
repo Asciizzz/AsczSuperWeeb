@@ -14,9 +14,13 @@ export class BeginFrame extends Acmp<AwgpuCtx> {
         this.label = label;
     }
 
-    override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
-        if (ctx.encoder) return;
-        ctx.encoder = ctx.device!.createCommandEncoder({ label: this.label });
+    override exec(ctx: AwgpuCtx, diag?: Adiag): void {
+        if (ctx.encoder && !ctx.ended) return;
+        if (!ctx.device) {
+            diag?.err({ code: "DEVICE_UNAVAILABLE", raw: "Cannot begin frame without a GPU device.", data: {} });
+            return;
+        }
+        ctx.encoder = ctx.device.createCommandEncoder({ label: this.label });
         ctx.ended = false;
     }
 }
@@ -26,10 +30,14 @@ export class BeginFrame extends Acmp<AwgpuCtx> {
  * Call at the end of each render frame after all passes are recorded.
  */
 export class EndFrame extends Acmp<AwgpuCtx> {
-    override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
-        if (ctx.encoder && !ctx.ended) {
-            ctx.queue!.submit([ctx.encoder.finish()]);
-            ctx.ended = true;
+    override exec(ctx: AwgpuCtx, diag?: Adiag): void {
+        if (!ctx.encoder || ctx.ended) return;
+        if (!ctx.queue) {
+            diag?.err({ code: "QUEUE_UNAVAILABLE", raw: "Cannot end frame without a GPU queue.", data: {} });
+            return;
         }
+        ctx.queue.submit([ctx.encoder.finish()]);
+        ctx.encoder = null;
+        ctx.ended = true;
     }
 }

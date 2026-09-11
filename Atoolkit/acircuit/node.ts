@@ -20,6 +20,9 @@ export abstract class Acnode {
      */
     addInput(socketOrName: Asocket | string): this {
         const socket = typeof socketOrName === "string" ? new Asocket(socketOrName, "input") : socketOrName;
+        if (socket.direction !== "input") {
+            throw new Error(`[Acnode] Input socket "${socket.name}" must have input direction.`);
+        }
         this.inputs.set(socket.name, socket);
         return this;
     }
@@ -29,6 +32,9 @@ export abstract class Acnode {
      */
     addOutput(socketOrName: Asocket | string): this {
         const socket = typeof socketOrName === "string" ? new Asocket(socketOrName, "output") : socketOrName;
+        if (socket.direction !== "output") {
+            throw new Error(`[Acnode] Output socket "${socket.name}" must have output direction.`);
+        }
         this.outputs.set(socket.name, socket);
         return this;
     }

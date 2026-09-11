@@ -8,7 +8,7 @@ A modular, zero-allocation reactive dataflow framework and WebGPU rendering engi
 
 AsczSuperWeeb is divided into two distinct architectural layers:
 
-1. **`Atoolkit`**: A zero-dependency computational foundation providing cache-conscious data structures, a sparse-set Entity Component System, reactive Directed Acyclic Graph (DAG) task scheduling, allocation-free linear algebra, and low-level WebGPU hardware abstractions.
+1. **`Atoolkit`**: A zero-dependency computational foundation providing cache-conscious data structures, a sparse-set Entity Component System, stateless value circuits, allocation-free linear algebra, and low-level hardware abstractions.
 2. **`WeebRender`**: A modern rendering engine built atop `Atoolkit` featuring an AST-driven procedural Shader Graph compiler targeting pure WebGPU Shading Language (WGSL), universal static and skinned mesh vertex pipelines, decoupled render pass execution, and streaming binary glTF/GLB ingestion.
 
 ---
@@ -22,8 +22,6 @@ AsczSuperWeeb/
 │   ├── acircuit/      # Stateless socket circuit with topological execution
 │   ├── adiag/         # Zero-overhead diagnostic assertions and runtime contracts
 │   ├── aecs/          # High-performance cache-coherent Sparse-Set ECS
-│   ├── aflow/         # Topological DAG execution pipeline and scheduler
-│   ├── agraph/        # Directed graph data structures and cycle detection
 │   ├── alm/           # Zero-allocation linear algebra (Vec2, Vec3, Vec4, Mat4, Quat)
 │   ├── awgl2/         # WebGL2 fallback hardware abstraction
 │   └── awgpu/         # WebGPU device wrappers, buffer pools, and bind group managers

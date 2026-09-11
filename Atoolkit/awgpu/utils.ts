@@ -291,22 +291,27 @@ export function createVertexLayout(
     stepMode: GPUVertexStepMode = "vertex"
 ): GPUVertexBufferLayout {
     let currentOffset = 0;
+    let maxEnd = 0;
     const gpuAttributes: GPUVertexAttribute[] = [];
 
     for (const attr of attributes) {
         const offset = attr.offset ?? currentOffset;
+        const formatSize = VERTEX_FORMAT_SIZES[attr.format];
+        if (formatSize === undefined) {
+            throw new Error(`[Awgpu] Unsupported vertex format "${attr.format}".`);
+        }
         gpuAttributes.push({
             format: attr.format,
             offset,
             shaderLocation: attr.shaderLocation,
         });
 
-        const formatSize = VERTEX_FORMAT_SIZES[attr.format] ?? 4;
         currentOffset = offset + formatSize;
+        maxEnd = Math.max(maxEnd, currentOffset);
     }
 
     // Align total stride to 4 bytes
-    const arrayStride = Math.ceil(currentOffset / 4) * 4;
+    const arrayStride = Math.ceil(maxEnd / 4) * 4;
 
     return {
         arrayStride,

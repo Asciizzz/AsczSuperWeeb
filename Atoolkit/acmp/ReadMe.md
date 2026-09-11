@@ -21,7 +21,7 @@ Base class for executable components:
 
 ```ts
 export class Acmp<TCtx = unknown, TRet = void> {
-    exec(ctx: TCtx, diag?: Adiag): TRet;
+    abstract exec(ctx: TCtx, diag?: Adiag): TRet;
 }
 ```
 

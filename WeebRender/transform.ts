@@ -1,4 +1,3 @@
-import { Acmp } from "../Atoolkit/acmp/index.js";
 import { type Aecs } from "../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, Quat, DEG2RAD, type M16, type V3, type Q4 } from "../Atoolkit/alm/index.js";
 
@@ -11,7 +10,7 @@ const scratchRot = Quat();
 /**
  * 3D Transform ECS Component.
  */
-export class TransformCmp extends Acmp {
+export class TransformCmp {
     position: V3;
     rotation: Q4;
     scale: V3;
@@ -23,7 +22,6 @@ export class TransformCmp extends Acmp {
         rotation?: ArrayLike<number>,
         scale?: ArrayLike<number>
     ) {
-        super();
         this.position = position ? Vec3(position) : Vec3(0, 0, 0);
         this.rotation = rotation ? Quat(rotation) : Quat.makeIdentity();
         this.scale = scale ? Vec3(scale) : Vec3(1, 1, 1);

@@ -1,4 +1,3 @@
-import { Acmp } from "../../Atoolkit/acmp/index.js";
 import type { GShader } from "../gpu.js";
 import type { ShaderParamRecord, ShaderParamValue } from "../shadercmp.js";
 
@@ -6,7 +5,7 @@ import type { ShaderParamRecord, ShaderParamValue } from "../shadercmp.js";
  * Runtime component holding parameter overrides for an entity's shader.
  * If omitted on an entity, submeshes render using their shader's default parameters.
  */
-export class ShaderParamsCmp extends Acmp {
+export class ShaderParamsCmp {
     rShader?: GShader;
     values: ShaderParamRecord;
 
@@ -14,7 +13,6 @@ export class ShaderParamsCmp extends Acmp {
         values: ShaderParamRecord = {},
         rShader?: GShader
     ) {
-        super();
         this.values = values;
         this.rShader = rShader;
     }

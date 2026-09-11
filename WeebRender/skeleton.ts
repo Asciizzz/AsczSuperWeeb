@@ -1,4 +1,3 @@
-import { Acmp } from "../Atoolkit/acmp/index.js";
 import { type Aecs } from "../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, Quat, type M16, type V3, type Q4 } from "../Atoolkit/alm/index.js";
 
@@ -40,14 +39,13 @@ export interface JointPose {
  * Dynamic animated joint palette matrices for GPU skinning.
  * Maintains entity-specific local joint poses to preserve static Skeleton immutability.
  */
-export class SkinCmp extends Acmp {
+export class SkinCmp {
     rSkeleton: Skeleton;
     jointPalette: Float32Array; // Flattened array of (jointCount * 16) floats
     localPoses: JointPose[];    // Per-entity local joint poses
     isDirty: boolean;
 
     constructor(skeleton: Skeleton) {
-        super();
         this.rSkeleton = skeleton;
         this.jointPalette = new Float32Array(Math.max(1, skeleton.joints.length) * 16);
         this.localPoses = skeleton.joints.map((j) => ({

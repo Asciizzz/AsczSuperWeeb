@@ -1,28 +1,26 @@
 /* Aecs
 By Asciiz
 
-Entity Component System built from Acmp.
-Stores entities and their component payloads using Sparse Sets.
+Entity Component System for persistent component data.
+Stores entities and component payloads using Sparse Sets.
 Queries entities by component signatures with O(1) lookups and zero allocations.
 
 # Methods (the important ones)
 
-spawn(...components: Acmp[]): Aent
+spawn(...components: object[]): Aent
 kill(entity: Aent): boolean
 isAlive(entity: Aent): boolean
 
-set(entity: Aent, component: Acmp, cmpClass?: AcmpClass): this
-setAll(entity: Aent, ...components: Acmp[]): this
-get(entity: Aent, cmpClass: AcmpClass): T | null
-has(entity: Aent, cmpClass: AcmpClass): boolean
-remove(entity: Aent, cmpClass: AcmpClass): boolean
-removeAll(entity: Aent, ...cmpClasses: AcmpClass[]): this
+set(entity: Aent, component: object, cmpClass?: ComponentClass): this
+setAll(entity: Aent, ...components: object[]): this
+get(entity: Aent, cmpClass: ComponentClass): T | null
+has(entity: Aent, cmpClass: ComponentClass): boolean
+remove(entity: Aent, cmpClass: ComponentClass): boolean
+removeAll(entity: Aent, ...cmpClasses: ComponentClass[]): this
 clearComponents(entity: Aent): this
-getComponents(entity: Aent): Acmp[]
+getComponents(entity: Aent): object[]
 
-query(...cmpClasses: AcmpClass[]): Aquery
-
-execEntity(entity: Aent, ctx: TCtx, diag?: Adiag): TRet[]
+query(...cmpClasses: ComponentClass[]): Aquery
 
 entities(): Aent[]
 count(): number
@@ -30,10 +28,9 @@ clear(): void
 */
 
 import type { Adiag } from "../adiag/index.js";
-import { Acmp } from "../acmp/index.js";
-import { type Aent, aent, aentIndex, aentGen, AENT_GEN_MASK, AENT_NULL } from "./Aent.js";
+import { type Aent, aent, aentIndex, aentGen, AENT_GEN_MASK, AENT_INDEX_MASK, AENT_NULL } from "./Aent.js";
 import { SparseSet } from "./SparseSet.js";
-import { Aquery, type AcmpClass, type InferAcmpInstances } from "./Aquery.js";
+import { Aquery, type ComponentClass, type InferComponentInstances } from "./Aquery.js";
 
 export interface AecsOptions {
     diag?: Adiag;
@@ -50,8 +47,8 @@ export class Aecs {
     diag?: Adiag;
     label?: string;
 
-    private readonly stores = new Map<AcmpClass, SparseSet>();
-    private readonly entityComponents = new Map<number, Set<AcmpClass>>();
+    private readonly stores = new Map<ComponentClass, SparseSet>();
+    private readonly entityComponents = new Map<number, Set<ComponentClass>>();
     private readonly freeIndices: number[] = [];
     private readonly generations: number[] = [];
     private isAllocated: Uint8Array;
@@ -63,31 +60,6 @@ export class Aecs {
         this.label = options.label;
         const cap = options.initialCapacity ?? 256;
         this.isAllocated = new Uint8Array(cap);
-    }
-
-    /** Inspection view of registered component stores */
-    get registeredStores(): ReadonlyMap<AcmpClass, SparseSet> {
-        return this.stores;
-    }
-
-    /** Inspection view of slot recycling generation counts */
-    get generationTable(): readonly number[] {
-        return this.generations;
-    }
-
-    /** Inspection view of allocated entity slot flags */
-    get allocatedTable(): Uint8Array {
-        return this.isAllocated;
-    }
-
-    /** Inspection view of recycled slot index pool */
-    get freeSlotPool(): readonly number[] {
-        return this.freeIndices;
-    }
-
-    /** Inspection view of highest allocated slot index count */
-    get highWaterIndex(): number {
-        return this.nextIndex;
     }
 
     #ensureCapacity(index: number): void {
@@ -102,11 +74,14 @@ export class Aecs {
     /**
      * Creates a new living entity, optionally attaching initial components.
      */
-    spawn(...components: Acmp[]): Aent {
+    spawn(...components: object[]): Aent {
         let index: number;
         if (this.freeIndices.length > 0) {
             index = this.freeIndices.pop()!;
         } else {
+            if (this.nextIndex > AENT_INDEX_MASK) {
+                throw new Error("[Aecs] Entity index capacity exhausted.");
+            }
             index = this.nextIndex++;
             this.#ensureCapacity(index);
             this.generations[index] = 0;
@@ -156,8 +131,11 @@ export class Aecs {
         }
 
         this.isAllocated[idx] = 0;
-        this.generations[idx] = (this.generations[idx] + 1) & AENT_GEN_MASK;
-        this.freeIndices.push(idx);
+        const nextGeneration = this.generations[idx] + 1;
+        if (nextGeneration <= AENT_GEN_MASK) {
+            this.generations[idx] = nextGeneration;
+            this.freeIndices.push(idx);
+        }
         this.aliveCount--;
 
         this.diag?.ok({ code: "ENTITY_KILLED", raw: 'Killed entity $entity$', data: { entity } });
@@ -167,13 +145,13 @@ export class Aecs {
     /**
      * Attaches or updates a component instance on an entity.
      */
-    set<T extends Acmp>(entity: Aent, component: T, cmpClass?: AcmpClass<T>): this {
+    set<T extends object>(entity: Aent, component: T, cmpClass?: ComponentClass<T>): this {
         if (!this.isAlive(entity)) {
             this.diag?.err({ code: "ENTITY_DEAD", raw: 'Cannot set component on dead entity $entity$', data: { entity } });
             return this;
         }
 
-        const cls = (cmpClass ?? (component.constructor as AcmpClass<T>)) as AcmpClass;
+        const cls = (cmpClass ?? (component.constructor as ComponentClass<T>)) as ComponentClass;
         let store = this.stores.get(cls);
         if (!store) {
             store = new SparseSet();
@@ -196,7 +174,7 @@ export class Aecs {
     /**
      * Attaches multiple components to an entity in a single call.
      */
-    setAll(entity: Aent, ...components: Acmp[]): this {
+    setAll(entity: Aent, ...components: object[]): this {
         for (let i = 0; i < components.length; i++) {
             this.set(entity, components[i]);
         }
@@ -206,9 +184,9 @@ export class Aecs {
     /**
      * Retrieves the component instance of the specified type attached to an entity.
      */
-    get<T extends Acmp>(entity: Aent, cmpClass: AcmpClass<T>): T | null {
+    get<T extends object>(entity: Aent, cmpClass: ComponentClass<T>): T | null {
         if (!this.isAlive(entity)) return null;
-        const store = this.stores.get(cmpClass as AcmpClass);
+        const store = this.stores.get(cmpClass as ComponentClass);
         if (!store) return null;
         return store.get(entity) as T | null;
     }
@@ -216,24 +194,24 @@ export class Aecs {
     /**
      * Checks whether an entity currently holds a component of the specified type.
      */
-    has(entity: Aent, cmpClass: AcmpClass<any>): boolean {
+    has(entity: Aent, cmpClass: ComponentClass): boolean {
         if (!this.isAlive(entity)) return false;
-        const store = this.stores.get(cmpClass as AcmpClass);
+        const store = this.stores.get(cmpClass as ComponentClass);
         return store ? store.has(entity) : false;
     }
 
     /**
      * Removes a component type from an entity.
      */
-    remove(entity: Aent, cmpClass: AcmpClass<any>): boolean {
+    remove(entity: Aent, cmpClass: ComponentClass): boolean {
         if (!this.isAlive(entity)) return false;
-        const store = this.stores.get(cmpClass as AcmpClass);
+        const store = this.stores.get(cmpClass as ComponentClass);
         if (!store) return false;
 
         const removed = store.remove(entity);
         if (removed) {
             const idx = aentIndex(entity);
-            this.entityComponents.get(idx)?.delete(cmpClass as AcmpClass);
+            this.entityComponents.get(idx)?.delete(cmpClass as ComponentClass);
         }
         return removed;
     }
@@ -241,7 +219,7 @@ export class Aecs {
     /**
      * Removes multiple component types from an entity.
      */
-    removeAll(entity: Aent, ...cmpClasses: AcmpClass[]): this {
+    removeAll(entity: Aent, ...cmpClasses: ComponentClass[]): this {
         for (let i = 0; i < cmpClasses.length; i++) {
             this.remove(entity, cmpClasses[i]);
         }
@@ -268,13 +246,13 @@ export class Aecs {
     /**
      * Returns an array of all component instances currently attached to an entity.
      */
-    getComponents(entity: Aent): Acmp[] {
+    getComponents(entity: Aent): object[] {
         if (!this.isAlive(entity)) return [];
         const idx = aentIndex(entity);
         const compTypes = this.entityComponents.get(idx);
         if (!compTypes || compTypes.size === 0) return [];
 
-        const list: Acmp[] = [];
+        const list: object[] = [];
         for (const cmpClass of compTypes) {
             const store = this.stores.get(cmpClass);
             if (store) {
@@ -289,15 +267,15 @@ export class Aecs {
     /**
      * Creates a query to filter entities possessing the specified component types.
      */
-    query<const T extends readonly AcmpClass[]>(...cmpClasses: T): Aquery<InferAcmpInstances<T>> {
-        return new Aquery<InferAcmpInstances<T>>(this, cmpClasses as unknown as AcmpClass[]);
+    query<const T extends readonly ComponentClass[]>(...cmpClasses: T): Aquery<InferComponentInstances<T>> {
+        return new Aquery<InferComponentInstances<T>>(this, cmpClasses as unknown as ComponentClass[]);
     }
 
     /**
      * Internal access to a component type's SparseSet.
      */
-    getStore<T extends Acmp = Acmp>(cmpClass: AcmpClass<T>): SparseSet<T> | undefined {
-        return this.stores.get(cmpClass as AcmpClass) as SparseSet<T> | undefined;
+    getStore<T extends object = object>(cmpClass: ComponentClass<T>): SparseSet<T> | undefined {
+        return this.stores.get(cmpClass as ComponentClass) as SparseSet<T> | undefined;
     }
 
     /**
@@ -314,32 +292,10 @@ export class Aecs {
     }
 
     /**
-     * Alias for allEntities().
-     */
-    entities(): Aent[] {
-        return this.allEntities();
-    }
-
-    /**
      * Returns the total number of living entities.
      */
     count(): number {
         return this.aliveCount;
-    }
-
-    /**
-     * Executes all Acmp components attached to an entity in sequence.
-     */
-    execEntity<TCtx = unknown, TRet = void>(entity: Aent, ctx: TCtx, diag?: Adiag): TRet[] {
-        if (!this.isAlive(entity)) return [];
-        const activeDiag = diag ?? this.diag;
-        const components = this.getComponents(entity);
-        const results: TRet[] = [];
-        for (let i = 0; i < components.length; i++) {
-            const cmp = components[i] as Acmp<TCtx, TRet>;
-            results.push(cmp.exec(ctx, activeDiag));
-        }
-        return results;
     }
 
     /**

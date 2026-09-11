@@ -1,18 +1,17 @@
 import type { Aent } from "./Aent.js";
-import type { Acmp } from "../acmp/index.js";
 import type { SparseSet } from "./SparseSet.js";
 import type { Aecs } from "./Aecs.js";
 
 /**
  * Constructor type for an Acmp subclass.
  */
-export type AcmpClass<T extends Acmp = Acmp> = abstract new (...args: any[]) => T;
+export type ComponentClass<T extends object = object> = abstract new (...args: any[]) => T;
 
 /**
  * Maps a tuple of Acmp constructor types to a tuple of their respective instance types.
  */
-export type InferAcmpInstances<T extends readonly AcmpClass[]> = {
-    [K in keyof T]: T[K] extends AcmpClass<infer U> ? U : never;
+export type InferComponentInstances<T extends readonly ComponentClass[]> = {
+    [K in keyof T]: T[K] extends ComponentClass<infer U> ? U : never;
 };
 
 /**
@@ -21,14 +20,14 @@ export type InferAcmpInstances<T extends readonly AcmpClass[]> = {
  * Traversal uses the smallest sparse set as the driver loop,
  * checking secondary component sets in O(1) time.
  */
-export class Aquery<TInstances extends readonly any[] = any[]> implements Iterable<[Aent, ...TInstances]> {
+export class Aquery<TInstances extends readonly object[] = object[]> implements Iterable<[Aent, ...TInstances]> {
     private readonly ecs: Aecs;
-    private readonly requiredTypes: AcmpClass[];
-    private readonly withTypes: AcmpClass[] = [];
-    private readonly excludedTypes: AcmpClass[] = [];
-    private readonly anyTypes: AcmpClass[] = [];
+    private readonly requiredTypes: ComponentClass[];
+    private readonly withTypes: ComponentClass[] = [];
+    private readonly excludedTypes: ComponentClass[] = [];
+    private readonly anyTypes: ComponentClass[] = [];
 
-    constructor(ecs: Aecs, requiredTypes: AcmpClass[]) {
+    constructor(ecs: Aecs, requiredTypes: ComponentClass[]) {
         this.ecs = ecs;
         this.requiredTypes = [...requiredTypes];
     }
@@ -36,7 +35,7 @@ export class Aquery<TInstances extends readonly any[] = any[]> implements Iterab
     /**
      * Excludes entities that possess any of the specified component types.
      */
-    without(...types: AcmpClass[]): this {
+    without(...types: ComponentClass[]): this {
         this.excludedTypes.push(...types);
         return this;
     }
@@ -45,7 +44,7 @@ export class Aquery<TInstances extends readonly any[] = any[]> implements Iterab
      * Requires entities to possess the specified component types without yielding
      * them in the iteration tuple. Can accelerate traversal if smaller than required types.
      */
-    with(...types: AcmpClass[]): this {
+    with(...types: ComponentClass[]): this {
         this.withTypes.push(...types);
         return this;
     }
@@ -53,7 +52,7 @@ export class Aquery<TInstances extends readonly any[] = any[]> implements Iterab
     /**
      * Restricts query to entities that possess at least one of the specified types.
      */
-    some(...types: AcmpClass[]): this {
+    some(...types: ComponentClass[]): this {
         this.anyTypes.push(...types);
         return this;
     }

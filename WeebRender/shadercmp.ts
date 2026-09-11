@@ -1,4 +1,3 @@
-import { Acmp } from "../Atoolkit/acmp/index.js";
 import type { GpuTexture, GpuShader } from "./gpu.js";
 
 export type ShaderParamValue = number | number[] | Float32Array | GpuTexture | null;
@@ -12,7 +11,7 @@ export interface ShaderSlot {
 /**
  * ECS component holding shader references (GpuShader) and parameter overrides per slot.
  */
-export class ShaderCmp extends Acmp {
+export class ShaderCmp {
     shaders: (GpuShader | null)[];
     params: (ShaderParamRecord | null)[];
 
@@ -20,7 +19,6 @@ export class ShaderCmp extends Acmp {
         shaders: (GpuShader | null)[] | GpuShader = [],
         params: (ShaderParamRecord | null)[] | ShaderParamRecord = []
     ) {
-        super();
         if (Array.isArray(shaders)) {
             this.shaders = [...shaders];
         } else if (shaders) {

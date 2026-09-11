@@ -1,4 +1,3 @@
-import { Acmp } from "../Atoolkit/acmp/index.js";
 import type { GpuMesh } from "./gpu.js";
 
 // ==================== Interfaces ====================
@@ -61,12 +60,11 @@ export class Mesh {
 /**
  * Mesh component holding a reference to a GPU-resident GpuMesh.
  */
-export class MeshCmp extends Acmp {
+export class MeshCmp {
     rMesh: GpuMesh;
     visible: boolean;
 
     constructor(mesh: GpuMesh, visible = true) {
-        super();
         this.rMesh = mesh;
         this.visible = visible;
     }

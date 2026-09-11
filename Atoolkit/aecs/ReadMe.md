@@ -1,6 +1,6 @@
 # Aecs
 
-Lightweight, allocation-free Entity Component System built on `Acmp`. Stores entity states across sparse sets and provides O(1) component lookups and signature queries.
+Lightweight, allocation-free Entity Component System for persistent component data. Stores entity state across sparse sets and provides O(1) component lookups and signature queries.
 
 ---
 
@@ -9,7 +9,7 @@ Lightweight, allocation-free Entity Component System built on `Acmp`. Stores ent
 1. **Entity Primitive (`Aent`)**: 32-bit packed integer (20 bits index, 12 bits generation) with zero object allocations, direct array indexing, and automatic tombstoning against stale references.
 2. **Component Storage (`SparseSet`)**: Contiguous dense component arrays mapped through sparse index tables, guaranteeing O(1) `set`, `get`, `has`, and swap-and-pop `remove`.
 3. **Query Engine (`Aquery`)**: Traverses matching entities using smallest component sets as driver loops, evaluating secondary criteria in O(1) time.
-4. **Execution Agnostic**: Components subclass `Acmp`, supporting pure data storage and optional `exec(ctx, diag)` execution.
+4. **Execution Agnostic**: Components are plain data objects. External systems decide how to process queried entities.
 
 ---
 
@@ -50,24 +50,23 @@ Removing a component swaps the final dense element into the target slot and pops
 export class Aecs {
     constructor(options?: AecsOptions);
 
-    spawn(...components: Acmp[]): Aent;
+    spawn(...components: object[]): Aent;
     kill(entity: Aent): boolean;
     isAlive(entity: Aent): boolean;
     count(): number;
-    entities(): Aent[];
+    allEntities(): Aent[];
     clear(): void;
 
-    set<T extends Acmp>(entity: Aent, component: T, cmpClass?: AcmpClass<T>): this;
-    setAll(entity: Aent, ...components: Acmp[]): this;
-    get<T extends Acmp>(entity: Aent, cmpClass: AcmpClass<T>): T | null;
-    has(entity: Aent, cmpClass: AcmpClass<any>): boolean;
-    remove(entity: Aent, cmpClass: AcmpClass<any>): boolean;
-    removeAll(entity: Aent, ...cmpClasses: AcmpClass[]): this;
+    set<T extends object>(entity: Aent, component: T, cmpClass?: ComponentClass<T>): this;
+    setAll(entity: Aent, ...components: object[]): this;
+    get<T extends object>(entity: Aent, cmpClass: ComponentClass<T>): T | null;
+    has(entity: Aent, cmpClass: ComponentClass): boolean;
+    remove(entity: Aent, cmpClass: ComponentClass): boolean;
+    removeAll(entity: Aent, ...cmpClasses: ComponentClass[]): this;
     clearComponents(entity: Aent): this;
-    getComponents(entity: Aent): Acmp[];
+    getComponents(entity: Aent): object[];
 
-    query<const T extends readonly AcmpClass[]>(...cmpClasses: T): Aquery<InferAcmpInstances<T>>;
-    execEntity<TCtx = unknown, TRet = void>(entity: Aent, ctx: TCtx, diag?: Adiag): TRet[];
+    query<const T extends readonly ComponentClass[]>(...cmpClasses: T): Aquery<InferComponentInstances<T>>;
 }
 ```
 
@@ -75,13 +74,12 @@ export class Aecs {
 - **`kill(entity)`**: Purges all attached components from sparse sets, increments slot generation counter, and pushes index to the recycling pool.
 - **`isAlive(entity)`**: O(1) generational validation comparing the identifier's generation against current slot state.
 - **`clearComponents(entity)`**: Removes all attached components from sparse sets while preserving entity identity and lifecycle state.
-- **`execEntity(entity, ctx, diag?)`**: Invokes `cmp.exec(ctx, diag)` sequentially across all components attached to the entity.
 
 ```ts
-export class Aquery<TInstances extends readonly any[] = any[]> implements Iterable<[Aent, ...TInstances]> {
-    with(...types: AcmpClass[]): this;
-    without(...types: AcmpClass[]): this;
-    some(...types: AcmpClass[]): this;
+export class Aquery<TInstances extends readonly object[] = object[]> implements Iterable<[Aent, ...TInstances]> {
+    with(...types: ComponentClass[]): this;
+    without(...types: ComponentClass[]): this;
+    some(...types: ComponentClass[]): this;
 
     first(): [Aent, ...TInstances] | null;
     entities(): Aent[];

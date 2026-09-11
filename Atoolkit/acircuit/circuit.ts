@@ -68,6 +68,15 @@ export class Acircuit {
         if (!outNode) throw new Error(`[Acircuit] Output node "${String(outNodeOrId)}" not found in graph.`);
         if (!inNode) throw new Error(`[Acircuit] Input node "${String(inNodeOrId)}" not found in graph.`);
 
+        const registeredOut = this.nodes.get(outNode.id);
+        const registeredIn = this.nodes.get(inNode.id);
+        if (registeredOut && registeredOut !== outNode) {
+            throw new Error(`[Acircuit] Node id "${outNode.id}" is already registered with a different output node.`);
+        }
+        if (registeredIn && registeredIn !== inNode) {
+            throw new Error(`[Acircuit] Node id "${inNode.id}" is already registered with a different input node.`);
+        }
+
         this.addNode(outNode);
         this.addNode(inNode);
 
@@ -142,7 +151,7 @@ export class Acircuit {
 
     getOutgoingWires(nodeOrId: Acnode | string, socketName?: string): Awire[] {
         const id = typeof nodeOrId === "string" ? nodeOrId : nodeOrId.id;
-        if (socketName) return this._outWires.get(outSocketKey(id, socketName)) ?? [];
+        if (socketName) return [...(this._outWires.get(outSocketKey(id, socketName)) ?? [])];
 
         const result: Awire[] = [];
         for (const [key, wires] of this._outWires) {

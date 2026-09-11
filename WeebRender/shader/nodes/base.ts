@@ -28,14 +28,14 @@ export abstract class ShaderNode extends Acnode {
 
     override addInput(socketOrName: Asocket | string | { name: string; type: SocketType }): this {
         if (typeof socketOrName === "object" && !(socketOrName instanceof Asocket)) {
-            return super.addInput(new ShaderSocket(socketOrName.name, socketOrName.type));
+            return super.addInput(new ShaderSocket(socketOrName.name, socketOrName.type, "input"));
         }
         return super.addInput(socketOrName);
     }
 
     override addOutput(socketOrName: Asocket | string | { name: string; type: SocketType }): this {
         if (typeof socketOrName === "object" && !(socketOrName instanceof Asocket)) {
-            return super.addOutput(new ShaderSocket(socketOrName.name, socketOrName.type));
+            return super.addOutput(new ShaderSocket(socketOrName.name, socketOrName.type, "output"));
         }
         return super.addOutput(socketOrName);
     }

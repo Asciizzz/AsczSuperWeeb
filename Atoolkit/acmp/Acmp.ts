@@ -3,14 +3,12 @@ import type { Adiag } from "../adiag/index.js";
 /**
  * Universal component primitive.
  */
-export class Acmp<TCtx = unknown, TRet = void> {
+export abstract class Acmp<TCtx = unknown, TRet = void> {
     /**
      * Executes against the given context.
      * Records diagnostics on failure via diag.
      */
-    exec(_ctx: TCtx, _diag?: Adiag): TRet {
-        return undefined as unknown as TRet;
-    }
+    abstract exec(ctx: TCtx, diag?: Adiag): TRet;
 }
 
 /**

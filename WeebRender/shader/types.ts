@@ -1,12 +1,12 @@
-import { Asocket, type Awire } from "../../Atoolkit/acircuit/index.js";
+import { Asocket, type Awire, type SocketDirection } from "../../Atoolkit/acircuit/index.js";
 import type { GpuTexture } from "../gpu.js";
 
 export type SocketType = "float" | "vec2" | "vec3" | "vec4" | "texture2d";
 
 export class ShaderSocket extends Asocket {
     type: SocketType;
-    constructor(name: string, type: SocketType) {
-        super(name);
+    constructor(name: string, type: SocketType, direction: SocketDirection = "input") {
+        super(name, direction);
         this.type = type;
     }
 }

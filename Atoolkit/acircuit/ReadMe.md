@@ -9,8 +9,6 @@ Directed computation circuit with typed socket endpoints, 1-to-1 input connectio
 - `Acnode` declares sockets and evaluates one input record through `process()`.
 - `Acircuit` owns graph topology, resolves dependencies, and executes nodes.
 
-Nodes do not cache input or output values. A circuit run resolves values into a temporary output map and passes those values to downstream nodes. Persistent state belongs to an explicit higher-level runtime or to a node whose domain requires internal state.
-
 ## API
 
 ### Acnode
