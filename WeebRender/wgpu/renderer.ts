@@ -1,12 +1,9 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import { type Adiag } from "../../Atoolkit/adiag/index.js";
-import { Aflow, type Anode } from "../../Atoolkit/aflow/index.js";
 import { type Aecs } from "../../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, type M16 } from "../../Atoolkit/alm/index.js";
 import {
     Backend,
-    BeginFrame,
-    EndFrame,
     RenderPass,
     EndPass,
     type AwgpuCtx,
@@ -26,12 +23,8 @@ import { WgpuMesh, GMesh } from "./wmesh.js";
 import { WgpuTexture, GTexture } from "./wtexture.js";
 import { WgpuShader, GShader } from "./wshader.js";
 
-// Re-export frame and pass components for external flow composition
+// Re-export pass components for external frame composition
 export {
-    BeginFrame,
-    EndFrame,
-    BeginFrame as FrameStart,
-    EndFrame as FrameEnd,
     RenderPass,
     EndPass,
     type AwgpuCtx,
@@ -66,7 +59,6 @@ const IDENTITY_MATRIX: M16 = Mat4.makeIdentity();
 export interface WgpuRendererOptions {
     antialias?: boolean;
     clearColor?: { r: number; g: number; b: number; a: number };
-    parentNode?: Anode<Acmp<AwgpuCtx>[]>;
     target?: WgpuTexture | null;
     label?: string;
     backend?: Backend;
@@ -75,26 +67,21 @@ export interface WgpuRendererOptions {
 /**
  * WebGPU rendering engine.
  * Operates strictly on GPU-resident data wrappers (GMesh, GTexture, GShader).
- * Controls rendering up to the RenderPass level and mounts into an external Aflow node.
+ * Controls rendering up to the RenderPass level.
+ * Frame lifecycle components are created and executed by the caller.
  */
 export class WgpuRenderer {
     readonly canvas: HTMLCanvasElement;
     backend: Backend | null = null;
     label: string;
 
-    parentNode: Anode<Acmp<AwgpuCtx>[]> | null = null;
     target: WgpuTexture | null = null;
 
     renderPassCmp: RenderPass | null = null;
     sceneDrawCmp: SceneDrawCmp | null = null;
     endPassCmp: EndPass | null = null;
 
-    get renderPassStep(): RenderPass | null { return this.renderPassCmp; }
-    set renderPassStep(v: RenderPass | null) { this.renderPassCmp = v; }
-    get sceneDrawStep(): SceneDrawCmp | null { return this.sceneDrawCmp; }
-    set sceneDrawStep(v: SceneDrawCmp | null) { this.sceneDrawCmp = v; }
-    get endPassStep(): EndPass | null { return this.endPassCmp; }
-    set endPassStep(v: EndPass | null) { this.endPassCmp = v; }
+    readonly components: Acmp<AwgpuCtx>[] = [];
 
     defaultShader: GShader | null = null;
     pipeline: GPURenderPipeline | null = null;
@@ -130,9 +117,6 @@ export class WgpuRenderer {
     clearColor = { r: 0.08, g: 0.09, b: 0.12, a: 1.0 };
     drawCallCount = 0;
 
-    private standaloneStartCmp = new BeginFrame("StandaloneFrameStart");
-    private standaloneEndCmp = new EndFrame();
-
     constructor(canvas: HTMLCanvasElement, options: WgpuRendererOptions = {}) {
         this.canvas = canvas;
         this.label = options.label ?? "WgpuRenderer";
@@ -144,9 +128,6 @@ export class WgpuRenderer {
         }
         if (options.backend) {
             this.backend = options.backend;
-        }
-        if (options.parentNode) {
-            this.parentNode = options.parentNode;
         }
     }
 
@@ -303,10 +284,6 @@ export class WgpuRenderer {
         // 6. Build RenderPass and SceneDrawCmp components
         this.buildPassCmps();
 
-        // 7. Mount to parentNode if provided
-        if (this.parentNode) {
-            this.mountPassCmps();
-        }
     }
 
     private createDefaultShader(): GShader {
@@ -342,64 +319,8 @@ export class WgpuRenderer {
         });
         this.sceneDrawCmp = new SceneDrawCmp(this);
         this.endPassCmp = new EndPass();
-    }
-
-    /**
-     * Backwards-compatible alias for buildPassCmps.
-     */
-    buildPassSteps(): void {
-        this.buildPassCmps();
-    }
-
-    /**
-     * Attaches this renderer to a parent Aflow node.
-     * Installs RenderPass, SceneDrawCmp, and EndPass into the node's payload array.
-     */
-    attach(node: Anode<Acmp<AwgpuCtx>[]>): this {
-        if (this.parentNode && this.parentNode !== node) {
-            this.detach();
-        }
-        this.parentNode = node;
-        this.mountPassCmps();
-        return this;
-    }
-
-    /**
-     * Detaches this renderer from its current parent Aflow node.
-     */
-    detach(): this {
-        if (this.parentNode) {
-            this.unmountPassCmps();
-            this.parentNode = null;
-        }
-        return this;
-    }
-
-    private mountPassCmps(): void {
-        if (!this.parentNode || !this.renderPassCmp || !this.sceneDrawCmp || !this.endPassCmp) return;
-        if (!Array.isArray(this.parentNode.data)) {
-            this.parentNode.data = [];
-        }
-        const filtered = this.parentNode.data.filter(
-            (c) => c !== this.renderPassCmp && c !== this.sceneDrawCmp && c !== this.endPassCmp
-        );
-        filtered.push(this.renderPassCmp, this.sceneDrawCmp, this.endPassCmp);
-        this.parentNode.data = filtered;
-    }
-
-    private mountPassSteps(): void {
-        this.mountPassCmps();
-    }
-
-    private unmountPassCmps(): void {
-        if (!this.parentNode || !Array.isArray(this.parentNode.data)) return;
-        this.parentNode.data = this.parentNode.data.filter(
-            (c) => c !== this.renderPassCmp && c !== this.sceneDrawCmp && c !== this.endPassCmp
-        );
-    }
-
-    private unmountPassSteps(): void {
-        this.unmountPassCmps();
+        this.components.length = 0;
+        this.components.push(this.renderPassCmp, this.sceneDrawCmp, this.endPassCmp);
     }
 
     /**
@@ -794,25 +715,12 @@ export class WgpuRenderer {
     }
 
     /**
-     * Executes a complete render frame in standalone mode.
-     * When orchestrating multiple passes with external Aflow, stage scene state
-     * via `setScene(...)` and execute the Aflow DAG instead.
+     * Executes the renderer's pass-level components in order.
+     * FrameStart and FrameEnd remain external to this renderer.
      */
-    render(ecs: Aecs, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): void {
-        this.setScene(ecs, camera, clearColor);
-        if (!this.backend?.device) return;
-
-        const ctx = this.backend.newCtx();
-        this.standaloneStartCmp.exec(ctx);
-        if (this.renderPassCmp) {
-            this.renderPassCmp.exec(ctx);
+    exec(ctx: AwgpuCtx, diag?: Adiag): void {
+        for (const component of this.components) {
+            component.exec(ctx, diag);
         }
-        if (this.sceneDrawCmp) {
-            this.sceneDrawCmp.exec(ctx);
-        }
-        if (this.endPassCmp) {
-            this.endPassCmp.exec(ctx);
-        }
-        this.standaloneEndCmp.exec(ctx);
     }
 }

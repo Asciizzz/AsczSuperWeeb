@@ -5,7 +5,7 @@ Entity Component System built from Acmp.
 Stores entities and their component payloads using Sparse Sets.
 Queries entities by component signatures with O(1) lookups and zero allocations.
 
-# Methods:
+# Methods (the important ones)
 
 spawn(...components: Acmp[]): Aent
 kill(entity: Aent): boolean

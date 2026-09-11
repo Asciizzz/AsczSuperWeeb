@@ -2,10 +2,6 @@ import type { Adiag } from "../adiag/index.js";
 
 /**
  * Universal component primitive.
- *
- * Represents an atomic, isolated unit of execution.
- * Receives a mutable context (`ctx`) and an optional diagnostic
- * collector (`diag`), returning an optional typed result (`TRet`, defaults to `void`).
  */
 export class Acmp<TCtx = unknown, TRet = void> {
     /**

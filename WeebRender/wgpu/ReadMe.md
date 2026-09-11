@@ -1,6 +1,6 @@
 # WebGPU Backend (WeebRender/wgpu)
 
-WebGPU hardware implementation for `WeebRender`, managing GPU buffers, pipelines, textures, and Aflow pass recording.
+WebGPU hardware implementation for `WeebRender`, managing GPU buffers, pipelines, textures, and flat pass recording.
 
 ---
 
@@ -61,7 +61,8 @@ Dedicated WebGPU shader code compiler:
 
 `WgpuRenderer`:
 - Initializes `Awgpu` device context, swapchain format, depth-stencil buffer, and default 1x1 white fallback texture.
-- Assembles the `Aflow` render execution graph (`BeginFrame` -> `RenderPass` -> `EndFrame`).
+- Exposes a flat pass component array (`RenderPass` -> `SceneDrawCmp` -> `EndPass`).
+- Runs between external `FrameStart` and `FrameEnd` components using one shared `AwgpuCtx`.
 - Maintains object uniform buffer pools (Group 1, 64 bytes) and material uniform buffer pools (Group 2).
 - Queries renderable ECS entities and dispatches draw calls inside `executeDrawCalls`.
 

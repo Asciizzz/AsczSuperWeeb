@@ -18,8 +18,8 @@ export type InferAcmpInstances<T extends readonly AcmpClass[]> = {
 /**
  * Filtered iterator for entities possessing specified component combinations.
  *
- * Traversal uses the smallest sparse set as the driver loop, checking secondary
- * component sets in O(1) time.
+ * Traversal uses the smallest sparse set as the driver loop,
+ * checking secondary component sets in O(1) time.
  */
 export class Aquery<TInstances extends readonly any[] = any[]> implements Iterable<[Aent, ...TInstances]> {
     private readonly ecs: Aecs;

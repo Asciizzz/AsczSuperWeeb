@@ -3,7 +3,7 @@
 3D rendering engine built on the `Atoolkit` library suite:
 - `Aecs`: Sparse-set Entity Component System for state queries.
 - `Acmp`: Composable execution component payloads.
-- `Aflow`: Directed execution graph for pass scheduling.
+- Flat component arrays: Explicit execution order for frame and render-pass work.
 - `Alm`: Linear algebra matrices and quaternions.
 - `Acircuit`: Typed socket computation graph driving shader graph topology.
 
@@ -88,7 +88,7 @@ Active hardware backend:
 - `WgpuTexture`: Manages `GPUTexture`, `GPUTextureView`, and `GPUSampler` objects, supporting CPU texture uploads and offscreen Render-to-Texture (RTT) targets.
 - `WgpuShader`: Manages `GPURenderPipeline` caching for static (stride 32) and skinned (stride 64) vertex configurations, WGSL shader modules, and bind group layouts.
 - `compileWgsl`: Dedicated WebGPU shader compiler translating `ShaderCircuit` topology into WGSL source code.
-- `WgpuRenderer`: Orchestrates render passes via `Aflow`, managing camera, object, material, and skinning bind groups.
+- `WgpuRenderer`: Records render-pass components into a flat array, managing camera, object, material, and skinning bind groups.
 
 See [wgpu/ReadMe.md](./wgpu/ReadMe.md) for WebGPU backend details.
 
@@ -188,5 +188,9 @@ ecs.spawn(
 );
 
 // 7. Render Frame
-renderer.render(ecs, camera);
+renderer.setScene(ecs, camera);
+const ctx = renderer.backend!.newCtx();
+new FrameStart().exec(ctx);
+renderer.exec(ctx);
+new FrameEnd().exec(ctx);
 ```

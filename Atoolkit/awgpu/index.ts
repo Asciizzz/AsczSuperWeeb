@@ -32,7 +32,12 @@ export type {
 } from "./utils.js";
 
 // Lifecycle
-export { BeginFrame, EndFrame } from "./cmps/frame.js";
+export {
+    BeginFrame,
+    EndFrame,
+    BeginFrame as FrameStart,
+    EndFrame as FrameEnd,
+} from "./cmps/frame.js";
 
 // Passes
 export { RenderPass, ComputePass, EndPass } from "./cmps/pass.js";

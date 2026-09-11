@@ -3,13 +3,15 @@ export { WgpuTexture, GTexture, type WgpuTextureOptions, type GTextureOptions, t
 export { WgpuShader, GShader, type WgpuShaderPayload } from "./wshader.js";
 export { compileWgsl, type WgslCompileOptions } from "./wgsl.js";
 export {
+    BeginFrame,
+    EndFrame,
+    BeginFrame as FrameStart,
+    EndFrame as FrameEnd,
+} from "../../Atoolkit/awgpu/index.js";
+export {
     WgpuRenderer,
     SceneDrawCmp,
     SceneDrawStep,
-    BeginFrame,
-    EndFrame,
-    FrameStart,
-    FrameEnd,
     RenderPass,
     EndPass,
     type AwgpuCtx,
