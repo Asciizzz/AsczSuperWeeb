@@ -8,7 +8,7 @@ Structured diagnostic collector and causal error bus for Atoolkit.
 
 1. **Typed Records**: Objects with `type` ('ok', 'err', 'warn', 'info'), `code`, `raw`, `data`, and optional `ref` pointer.
 2. **Causal Reference Chaining (`ref`)**: High-level failures point directly to low-level causes. `Adiag.getCauseChain` walks pointer chains safely using visited sets to avoid circular references.
-3. **Bounded Log History**: Caps history at 1,000 entries, shifting oldest items out automatically to prevent frame-loop memory leaks.
+3. **Bounded Log History**: Caps history at 1,000 entries via an O(1) circular ring buffer, overwriting oldest items automatically.
 4. **Message Interpolation**: Compiles `$key$` and `$key.subkey$` placeholders from `data` via `Adiag.compileMsg`.
 
 ---
@@ -92,7 +92,7 @@ export class Adiag {
 }
 ```
 
-- **`results`**: Log history capped at 1,000 entries; shifts oldest items out automatically.
+- **`results`**: Log history capped at 1000 entries in chronological order.
 - **`lastErr()`**: Scans backward from newest entries for the most recent error record.
 - **`getCauseChain(result)`**: Traverses `ref` pointers into an array ordered from high-level failure to root cause, using a visited set to prevent cycles.
 - **`compileMsg(raw, data)`**: Interpolates `$key$` and nested `$key.subkey$` placeholders against `data` values.

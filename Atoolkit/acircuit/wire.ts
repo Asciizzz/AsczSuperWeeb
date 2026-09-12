@@ -12,18 +12,13 @@ export interface Awire {
 }
 
 /**
- * Returns the lookup key for an input socket destination.
+ * Returns the lookup key for a socket endpoint.
  */
 export function inSocketKey(nodeId: string, socketName: string): string {
     return `${nodeId}:${socketName}`;
 }
 
-/**
- * Returns the lookup key for an output socket source.
- */
-export function outSocketKey(nodeId: string, socketName: string): string {
-    return `${nodeId}:${socketName}`;
-}
+export const outSocketKey = inSocketKey;
 
 /**
  * Compares two Awire instances for matching endpoints.

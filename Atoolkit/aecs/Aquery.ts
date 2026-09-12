@@ -26,6 +26,8 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
     private readonly withTypes: ComponentClass[] = [];
     private readonly excludedTypes: ComponentClass[] = [];
     private readonly anyTypes: ComponentClass[] = [];
+    private readonly _reqStores: SparseSet[] = [];
+    private readonly _withStores: SparseSet[] = [];
 
     constructor(ecs: Aecs, requiredTypes: ComponentClass[]) {
         this.ecs = ecs;
@@ -103,8 +105,7 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
 
         if (!smallestStore) return;
 
-        // Snapshot candidate entities to guard against swap-and-pop mutations during iteration
-        const candidates = smallestStore.entities.slice();
+        const candidates = smallestStore.entities;
         const candidateCount = candidates.length;
 
         for (let i = 0; i < candidateCount; i++) {
@@ -175,14 +176,108 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
     }
 
     /**
-     * Executes a callback for every matching entity.
+     * Executes a callback for every matching entity without allocating generator or tuple objects.
      */
     forEach(fn: (entity: Aent, ...components: TInstances) => void): void {
-        for (const item of this) {
-            const entity = item[0];
-            const cmps = item.slice(1) as unknown as TInstances;
-            fn(entity, ...cmps);
+        if (this.requiredTypes.length === 0 && this.withTypes.length === 0) {
+            this.ecs.forEachEntity((entity) => {
+                if (this.#isExcluded(entity)) return;
+                if (this.anyTypes.length > 0 && !this.#matchesAny(entity)) return;
+                (fn as unknown as (entity: Aent) => void)(entity);
+            });
+            return;
         }
+
+        const requiredStores = this._reqStores;
+        const withStores = this._withStores;
+        requiredStores.length = 0;
+        withStores.length = 0;
+        let smallestStore: SparseSet | null = null;
+        let minSize = Infinity;
+
+        for (let i = 0; i < this.requiredTypes.length; i++) {
+            const store = this.ecs.getStore(this.requiredTypes[i]);
+            if (!store || store.size === 0) return;
+            requiredStores.push(store);
+            if (store.size < minSize) {
+                minSize = store.size;
+                smallestStore = store;
+            }
+        }
+
+        for (let i = 0; i < this.withTypes.length; i++) {
+            const store = this.ecs.getStore(this.withTypes[i]);
+            if (!store || store.size === 0) return;
+            withStores.push(store);
+            if (store.size < minSize) {
+                minSize = store.size;
+                smallestStore = store;
+            }
+        }
+
+        if (!smallestStore) return;
+
+        const candidates = smallestStore.entities;
+        const reqLen = requiredStores.length;
+        const withLen = withStores.length;
+        const hasAny = this.anyTypes.length > 0;
+
+        for (let i = 0; i < candidates.length; i++) {
+            const entity = candidates[i];
+            if (!this.ecs.isAlive(entity)) continue;
+
+            let matchesAll = true;
+            for (let j = 0; j < reqLen; j++) {
+                if (!requiredStores[j].has(entity)) {
+                    matchesAll = false;
+                    break;
+                }
+            }
+            if (!matchesAll) continue;
+
+            for (let j = 0; j < withLen; j++) {
+                if (!withStores[j].has(entity)) {
+                    matchesAll = false;
+                    break;
+                }
+            }
+            if (!matchesAll) continue;
+
+            if (this.#isExcluded(entity)) continue;
+            if (hasAny && !this.#matchesAny(entity)) continue;
+
+            if (reqLen === 0) {
+                (fn as unknown as (e: Aent) => void)(entity);
+            } else if (reqLen === 1) {
+                const c0 = requiredStores[0].get(entity);
+                if (c0 != null) (fn as unknown as (e: Aent, a: unknown) => void)(entity, c0);
+            } else if (reqLen === 2) {
+                const c0 = requiredStores[0].get(entity);
+                const c1 = requiredStores[1].get(entity);
+                if (c0 != null && c1 != null) (fn as unknown as (e: Aent, a: unknown, b: unknown) => void)(entity, c0, c1);
+            } else if (reqLen === 3) {
+                const c0 = requiredStores[0].get(entity);
+                const c1 = requiredStores[1].get(entity);
+                const c2 = requiredStores[2].get(entity);
+                if (c0 != null && c1 != null && c2 != null) (fn as unknown as (e: Aent, a: unknown, b: unknown, c: unknown) => void)(entity, c0, c1, c2);
+            } else {
+                const args: any[] = new Array(reqLen);
+                let valid = true;
+                for (let k = 0; k < reqLen; k++) {
+                    const c = requiredStores[k].get(entity);
+                    if (c == null) { valid = false; break; }
+                    args[k] = c;
+                }
+                if (valid) fn(entity, ...args as unknown as TInstances);
+            }
+        }
+    }
+
+    /**
+     * Alias for forEach zero-allocation traversal.
+     */
+    each(fn: (entity: Aent, ...components: TInstances) => void): void {
+        this.forEach(fn);
     }
 
     /**
@@ -200,9 +295,9 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
      */
     entities(): Aent[] {
         const result: Aent[] = [];
-        for (const item of this) {
-            result.push(item[0]);
-        }
+        this.forEach((entity: Aent, ..._cmps: TInstances) => {
+            result.push(entity);
+        });
         return result;
     }
 
@@ -211,9 +306,9 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
      */
     count(): number {
         let total = 0;
-        for (const _ of this) {
+        this.forEach((_entity: Aent, ..._cmps: TInstances) => {
             total++;
-        }
+        });
         return total;
     }
 }

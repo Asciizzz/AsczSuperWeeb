@@ -118,22 +118,7 @@ export class DrawIndirect extends Acmp<AwgpuCtx> {
  * Issues an indexed draw call with parameters from an indirect buffer.
  * Falls back to `ctx.buffers.indirect` if no buffer is provided.
  */
-export class DrawIndexedIndirect extends Acmp<AwgpuCtx> {
-    readonly data: DrawIndirectData;
-
-    constructor(data: DrawIndirectData = {}) {
-        super();
-        this.data = data;
-    }
-
-    buffer(ctx: AwgpuCtx): GPUBuffer | null {
-        return (typeof this.data.buffer === "function" ? this.data.buffer(ctx) : this.data.buffer) ?? null;
-    }
-
-    offset(ctx: AwgpuCtx): number {
-        return uint(typeof this.data.offset === "function" ? this.data.offset(ctx) : this.data.offset, 0);
-    }
-
+export class DrawIndexedIndirect extends DrawIndirect {
     override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
         if (!ctx.pass || ctx.passKind !== "render" || !ctx.pipeline) return;
         const buf = this.buffer(ctx);

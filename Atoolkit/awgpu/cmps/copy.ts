@@ -75,26 +75,29 @@ export class CopyBufferToBuffer extends Acmp<AwgpuCtx> {
 }
 
 /**
- * Copies data from a buffer into a texture.
- * Must be called outside of a pass.
+ * Base class for texture copy operations sharing source, destination, and extent properties.
  */
-export class CopyBufferToTexture extends Acmp<AwgpuCtx> {
-    readonly src:  GPUImageCopyBuffer | null;
-    readonly dst:  GPUImageCopyTexture | null;
+export abstract class CopyImageBase<TSrc, TDst> extends Acmp<AwgpuCtx> {
+    readonly src:  TSrc | null;
+    readonly dst:  TDst | null;
     readonly size: GPUExtent3D | null;
 
-    constructor(data: Partial<CopyBufferToTextureData> = {}) {
+    constructor(data: { src?: TSrc; dst?: TDst; size?: GPUExtent3D } = {}) {
         super();
         this.src  = data.src  ?? null;
         this.dst  = data.dst  ?? null;
         this.size = data.size ?? null;
     }
+}
 
+/**
+ * Copies data from a buffer into a texture.
+ * Must be called outside of a pass.
+ */
+export class CopyBufferToTexture extends CopyImageBase<GPUImageCopyBuffer, GPUImageCopyTexture> {
     override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
         if (ctx.pass || !this.src || !this.dst || !this.size) return;
-        const encoder = ensureEncoder(ctx);
-        if (!encoder) return;
-        encoder.copyBufferToTexture(this.src, this.dst, this.size);
+        ensureEncoder(ctx)?.copyBufferToTexture(this.src, this.dst, this.size);
     }
 }
 
@@ -102,23 +105,10 @@ export class CopyBufferToTexture extends Acmp<AwgpuCtx> {
  * Copies data from a texture into a buffer.
  * Must be called outside of a pass.
  */
-export class CopyTextureToBuffer extends Acmp<AwgpuCtx> {
-    readonly src:  GPUImageCopyTexture | null;
-    readonly dst:  GPUImageCopyBuffer  | null;
-    readonly size: GPUExtent3D | null;
-
-    constructor(data: Partial<CopyTextureToBufferData> = {}) {
-        super();
-        this.src  = data.src  ?? null;
-        this.dst  = data.dst  ?? null;
-        this.size = data.size ?? null;
-    }
-
+export class CopyTextureToBuffer extends CopyImageBase<GPUImageCopyTexture, GPUImageCopyBuffer> {
     override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
         if (ctx.pass || !this.src || !this.dst || !this.size) return;
-        const encoder = ensureEncoder(ctx);
-        if (!encoder) return;
-        encoder.copyTextureToBuffer(this.src, this.dst, this.size);
+        ensureEncoder(ctx)?.copyTextureToBuffer(this.src, this.dst, this.size);
     }
 }
 
@@ -126,22 +116,9 @@ export class CopyTextureToBuffer extends Acmp<AwgpuCtx> {
  * Copies data from one texture to another.
  * Must be called outside of a pass.
  */
-export class CopyTextureToTexture extends Acmp<AwgpuCtx> {
-    readonly src:  GPUImageCopyTexture | null;
-    readonly dst:  GPUImageCopyTexture | null;
-    readonly size: GPUExtent3D | null;
-
-    constructor(data: Partial<CopyTextureToTextureData> = {}) {
-        super();
-        this.src  = data.src  ?? null;
-        this.dst  = data.dst  ?? null;
-        this.size = data.size ?? null;
-    }
-
+export class CopyTextureToTexture extends CopyImageBase<GPUImageCopyTexture, GPUImageCopyTexture> {
     override exec(ctx: AwgpuCtx, _diag?: Adiag): void {
         if (ctx.pass || !this.src || !this.dst || !this.size) return;
-        const encoder = ensureEncoder(ctx);
-        if (!encoder) return;
-        encoder.copyTextureToTexture(this.src, this.dst, this.size);
+        ensureEncoder(ctx)?.copyTextureToTexture(this.src, this.dst, this.size);
     }
 }

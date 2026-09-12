@@ -48,9 +48,9 @@ export class Aecs {
     label?: string;
 
     private readonly stores = new Map<ComponentClass, SparseSet>();
-    private readonly entityComponents = new Map<number, Set<ComponentClass>>();
+    private readonly entityComponents: ComponentClass[][] = [];
     private readonly freeIndices: number[] = [];
-    private readonly generations: number[] = [];
+    private generations: Uint16Array;
     private isAllocated: Uint8Array;
     private nextIndex = 0;
     private aliveCount = 0;
@@ -60,6 +60,7 @@ export class Aecs {
         this.label = options.label;
         const cap = options.initialCapacity ?? 256;
         this.isAllocated = new Uint8Array(cap);
+        this.generations = new Uint16Array(cap);
     }
 
     #ensureCapacity(index: number): void {
@@ -68,6 +69,10 @@ export class Aecs {
             const nextAllocated = new Uint8Array(nextCap);
             nextAllocated.set(this.isAllocated);
             this.isAllocated = nextAllocated;
+
+            const nextGenerations = new Uint16Array(nextCap);
+            nextGenerations.set(this.generations);
+            this.generations = nextGenerations;
         }
     }
 
@@ -93,11 +98,13 @@ export class Aecs {
 
         const entity = aent(index, gen);
 
-        if (components.length > 0) {
-            this.setAll(entity, ...components);
+        const compLen = components.length;
+        if (compLen > 0) {
+            for (let i = 0; i < compLen; i++) {
+                this.set(entity, components[i]);
+            }
         }
 
-        this.diag?.ok({ code: "ENTITY_SPAWNED", raw: 'Spawned entity $entity$', data: { entity } });
         return entity;
     }
 
@@ -121,24 +128,21 @@ export class Aecs {
         }
 
         const idx = aentIndex(entity);
-        const compTypes = this.entityComponents.get(idx);
+        const compTypes = this.entityComponents[idx];
         if (compTypes) {
-            for (const cmpClass of compTypes) {
-                const store = this.stores.get(cmpClass);
+            const len = compTypes.length;
+            for (let i = 0; i < len; i++) {
+                const store = this.stores.get(compTypes[i]);
                 if (store) store.remove(entity);
             }
-            compTypes.clear();
+            compTypes.length = 0;
         }
 
         this.isAllocated[idx] = 0;
-        const nextGeneration = this.generations[idx] + 1;
-        if (nextGeneration <= AENT_GEN_MASK) {
-            this.generations[idx] = nextGeneration;
-            this.freeIndices.push(idx);
-        }
+        this.generations[idx] = (this.generations[idx] + 1) & AENT_GEN_MASK;
+        this.freeIndices.push(idx);
         this.aliveCount--;
 
-        this.diag?.ok({ code: "ENTITY_KILLED", raw: 'Killed entity $entity$', data: { entity } });
         return true;
     }
 
@@ -161,12 +165,14 @@ export class Aecs {
         store.set(entity, component);
 
         const idx = aentIndex(entity);
-        let compTypes = this.entityComponents.get(idx);
+        let compTypes = this.entityComponents[idx];
         if (!compTypes) {
-            compTypes = new Set();
-            this.entityComponents.set(idx, compTypes);
+            compTypes = [];
+            this.entityComponents[idx] = compTypes;
         }
-        compTypes.add(cls);
+        if (!compTypes.includes(cls)) {
+            compTypes.push(cls);
+        }
 
         return this;
     }
@@ -211,7 +217,11 @@ export class Aecs {
         const removed = store.remove(entity);
         if (removed) {
             const idx = aentIndex(entity);
-            this.entityComponents.get(idx)?.delete(cmpClass as ComponentClass);
+            const compTypes = this.entityComponents[idx];
+            if (compTypes) {
+                const pos = compTypes.indexOf(cmpClass as ComponentClass);
+                if (pos >= 0) compTypes.splice(pos, 1);
+            }
         }
         return removed;
     }
@@ -232,13 +242,14 @@ export class Aecs {
     clearComponents(entity: Aent): this {
         if (!this.isAlive(entity)) return this;
         const idx = aentIndex(entity);
-        const compTypes = this.entityComponents.get(idx);
+        const compTypes = this.entityComponents[idx];
         if (compTypes) {
-            for (const cmpClass of compTypes) {
-                const store = this.stores.get(cmpClass);
+            const len = compTypes.length;
+            for (let i = 0; i < len; i++) {
+                const store = this.stores.get(compTypes[i]);
                 if (store) store.remove(entity);
             }
-            compTypes.clear();
+            compTypes.length = 0;
         }
         return this;
     }
@@ -249,12 +260,12 @@ export class Aecs {
     getComponents(entity: Aent): object[] {
         if (!this.isAlive(entity)) return [];
         const idx = aentIndex(entity);
-        const compTypes = this.entityComponents.get(idx);
-        if (!compTypes || compTypes.size === 0) return [];
+        const compTypes = this.entityComponents[idx];
+        if (!compTypes || compTypes.length === 0) return [];
 
         const list: object[] = [];
-        for (const cmpClass of compTypes) {
-            const store = this.stores.get(cmpClass);
+        for (let i = 0; i < compTypes.length; i++) {
+            const store = this.stores.get(compTypes[i]);
             if (store) {
                 const cmp = store.get(entity);
                 if (cmp) list.push(cmp);
@@ -292,6 +303,24 @@ export class Aecs {
     }
 
     /**
+     * Alias for allEntities.
+     */
+    entities(): Aent[] {
+        return this.allEntities();
+    }
+
+    /**
+     * Traverses all living entities with zero allocations.
+     */
+    forEachEntity(fn: (entity: Aent) => void): void {
+        for (let idx = 0; idx < this.nextIndex; idx++) {
+            if (this.isAllocated[idx] === 1) {
+                fn(aent(idx, this.generations[idx]));
+            }
+        }
+    }
+
+    /**
      * Returns the total number of living entities.
      */
     count(): number {
@@ -305,10 +334,10 @@ export class Aecs {
         for (const store of this.stores.values()) {
             store.clear();
         }
-        this.entityComponents.clear();
+        this.entityComponents.length = 0;
         this.freeIndices.length = 0;
         this.isAllocated.fill(0);
-        this.generations.length = 0;
+        this.generations.fill(0);
         this.nextIndex = 0;
         this.aliveCount = 0;
         this.diag?.ok({ code: "ECS_CLEARED", raw: 'Cleared all entities and component stores' });

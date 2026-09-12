@@ -14,7 +14,7 @@ Isolated execution unit receiving a mutable context (`ctx`) and optional diagnos
 
 ---
 
-## API Reference
+## API
 
 ### `Acmp<TCtx = unknown, TRet = void>`
 Base class for executable components:
@@ -54,9 +54,9 @@ const bounds = computeBounds.exec(meshCtx); // Typed as BoundingBox
 
 ---
 
-## Error Handling & Diagnostics
+## Diagnostics
 
-Components do not return control flow signals or throw unhandled exceptions. Records error on `diag` upon failure:
+Components do not return control flow signals or throw unhandled exceptions. Records errors on `diag` on failure:
 
 ```ts
 override exec(ctx: MyCtx, diag?: Adiag): void {

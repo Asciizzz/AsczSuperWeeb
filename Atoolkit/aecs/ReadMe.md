@@ -55,6 +55,8 @@ export class Aecs {
     isAlive(entity: Aent): boolean;
     count(): number;
     allEntities(): Aent[];
+    entities(): Aent[];
+    forEachEntity(fn: (entity: Aent) => void): void;
     clear(): void;
 
     set<T extends object>(entity: Aent, component: T, cmpClass?: ComponentClass<T>): this;
@@ -85,10 +87,12 @@ export class Aquery<TInstances extends readonly object[] = object[]> implements 
     entities(): Aent[];
     count(): number;
     forEach(fn: (entity: Aent, ...components: TInstances) => void): void;
+    each(fn: (entity: Aent, ...components: TInstances) => void): void;
 }
 ```
 
 - **`[Symbol.iterator]`**: Uses the smallest sparse set among required and `.with` types to drive the iteration loop, evaluating secondary criteria in O(1) time.
+- **`forEach(fn)` / `each(fn)`**: Direct callback traversal passing component instances into parameters without generator or tuple allocations.
 - **`.with(...types)`**: Requires component presence without yielding instances in the result tuple. Serves as driver loop if smaller than required stores.
 - **`.without(...types)`**: O(1) exclusion filter skipping entities holding any specified component types.
 - **`.some(...types)`**: Requires presence of at least one component from the set.

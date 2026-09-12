@@ -1,4 +1,4 @@
-# Atoolkit/acircuit
+# Acircuit
 
 Directed computation circuit with typed socket endpoints, 1-to-1 input connections, 1-to-N output fan-out, and topological execution.
 
@@ -62,7 +62,7 @@ export class Acircuit {
 ```
 
 - `connect()` replaces an existing wire on the destination input.
-- `topoSort()` uses Kahn's algorithm and throws when the graph contains a cycle.
+- `topoSort()` uses Kahn's algorithm, caches topological order across runs, and throws when the graph contains a cycle.
 - `run()` evaluates every node in dependency order using values local to that invocation.
 - `RunOptions.overrides` supplies values for unconnected input sockets.
 - Execution callbacks observe node entry, node exit, and resolved wire values without changing node state.

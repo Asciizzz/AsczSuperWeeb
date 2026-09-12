@@ -18,13 +18,40 @@ export interface AdiagAddArgs {
 // ==================== Adiag =====================
 
 export class Adiag {
-    results: AdiagResult[] = [];
     state: Record<string, unknown> = {}; // shared state for all diag
+    readonly maxHistory: number;
+
+    #buffer: (AdiagResult | null)[];
+    #head = 0;
+    #count = 0;
 
     static readonly TYPE_OK   = "ok";
     static readonly TYPE_ERR  = "err";
     static readonly TYPE_WARN = "warn";
     static readonly TYPE_INFO = "info";
+
+    constructor(maxHistory = 1000) {
+        this.maxHistory = maxHistory;
+        this.#buffer = new Array(maxHistory).fill(null);
+    }
+
+    get results(): AdiagResult[] {
+        if (this.#count === 0) return [];
+        const res: AdiagResult[] = new Array(this.#count);
+        const start = (this.#head - this.#count + this.maxHistory) % this.maxHistory;
+        for (let i = 0; i < this.#count; i++) {
+            res[i] = this.#buffer[(start + i) % this.maxHistory]!;
+        }
+        return res;
+    }
+
+    set results(items: AdiagResult[]) {
+        this.clear();
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            this.#add(item.type, item);
+        }
+    }
 
     ok(args: AdiagAddArgs = {}):   AdiagResult { return this.#add(Adiag.TYPE_OK,   args); }
     err(args: AdiagAddArgs = {}):  AdiagResult { return this.#add(Adiag.TYPE_ERR,  args); }
@@ -33,42 +60,83 @@ export class Adiag {
 
     #add(type: string, { code = "", raw = "", data = null, ref = null }: AdiagAddArgs = {}): AdiagResult {
         const item: AdiagResult = { type, code, raw, data, ref };
-        this.results.push(item);
-
-        // Cap maximum diagnostic log history
-        if (this.results.length > 1000) {
-            this.results.shift();
+        this.#buffer[this.#head] = item;
+        this.#head = (this.#head + 1) % this.maxHistory;
+        if (this.#count < this.maxHistory) {
+            this.#count++;
         }
-
         return item;
     }
 
-    clear(): void { this.results = []; }
+    clear(): void {
+        this.#head = 0;
+        this.#count = 0;
+        this.#buffer.fill(null);
+    }
 
     last(): AdiagResult | null {
-        return this.results[this.results.length - 1] ?? null;
+        if (this.#count === 0) return null;
+        const lastIdx = (this.#head - 1 + this.maxHistory) % this.maxHistory;
+        return this.#buffer[lastIdx];
     }
 
     lastErr(): AdiagResult | null {
-        for (let i = this.results.length - 1; i >= 0; i--) {
-            if (this.results[i].type === Adiag.TYPE_ERR) {
-                return this.results[i];
+        for (let i = 0; i < this.#count; i++) {
+            const idx = (this.#head - 1 - i + this.maxHistory) % this.maxHistory;
+            const item = this.#buffer[idx];
+            if (item && item.type === Adiag.TYPE_ERR) {
+                return item;
             }
         }
         return null;
     }
 
-    allOk():    boolean        { return this.results.every(r => r.type === Adiag.TYPE_OK); }
-    findOk():   AdiagResult[]  { return this.results.filter(r => r.type === Adiag.TYPE_OK); }
+    allOk(): boolean {
+        for (let i = 0; i < this.#count; i++) {
+            const idx = (this.#head - 1 - i + this.maxHistory) % this.maxHistory;
+            const item = this.#buffer[idx];
+            if (item && item.type !== Adiag.TYPE_OK) return false;
+        }
+        return true;
+    }
 
-    hasErrs():  boolean        { return this.results.some(r => r.type === Adiag.TYPE_ERR); }
-    findErrs(): AdiagResult[]  { return this.results.filter(r => r.type === Adiag.TYPE_ERR); }
+    findOk(): AdiagResult[] {
+        return this.results.filter(r => r.type === Adiag.TYPE_OK);
+    }
 
-    hasWarns():  boolean       { return this.results.some(r => r.type === Adiag.TYPE_WARN); }
-    findWarns(): AdiagResult[] { return this.results.filter(r => r.type === Adiag.TYPE_WARN); }
+    hasErrs(): boolean {
+        return this.lastErr() !== null;
+    }
 
-    hasInfos():  boolean       { return this.results.some(r => r.type === Adiag.TYPE_INFO); }
-    findInfos(): AdiagResult[] { return this.results.filter(r => r.type === Adiag.TYPE_INFO); }
+    findErrs(): AdiagResult[] {
+        return this.results.filter(r => r.type === Adiag.TYPE_ERR);
+    }
+
+    hasWarns(): boolean {
+        for (let i = 0; i < this.#count; i++) {
+            const idx = (this.#head - 1 - i + this.maxHistory) % this.maxHistory;
+            const item = this.#buffer[idx];
+            if (item && item.type === Adiag.TYPE_WARN) return true;
+        }
+        return false;
+    }
+
+    findWarns(): AdiagResult[] {
+        return this.results.filter(r => r.type === Adiag.TYPE_WARN);
+    }
+
+    hasInfos(): boolean {
+        for (let i = 0; i < this.#count; i++) {
+            const idx = (this.#head - 1 - i + this.maxHistory) % this.maxHistory;
+            const item = this.#buffer[idx];
+            if (item && item.type === Adiag.TYPE_INFO) return true;
+        }
+        return false;
+    }
+
+    findInfos(): AdiagResult[] {
+        return this.results.filter(r => r.type === Adiag.TYPE_INFO);
+    }
 
     /**
      * Extracts the causal reference chain starting from `result` in order of causality.

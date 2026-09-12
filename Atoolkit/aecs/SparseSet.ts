@@ -30,7 +30,7 @@ export class SparseSet<T extends object = object> {
     has(entity: Aent): boolean {
         const idx = aentIndex(entity);
         const denseIdx = this.sparse[idx];
-        return denseIdx !== undefined && denseIdx < this.dense.length && this.entities[denseIdx] === entity;
+        return denseIdx !== undefined && denseIdx >= 0 && denseIdx < this.dense.length && this.entities[denseIdx] === entity;
     }
 
     /**
@@ -39,7 +39,7 @@ export class SparseSet<T extends object = object> {
     get(entity: Aent): T | null {
         const idx = aentIndex(entity);
         const denseIdx = this.sparse[idx];
-        if (denseIdx !== undefined && denseIdx < this.dense.length && this.entities[denseIdx] === entity) {
+        if (denseIdx !== undefined && denseIdx >= 0 && denseIdx < this.dense.length && this.entities[denseIdx] === entity) {
             return this.dense[denseIdx];
         }
         return null;
@@ -51,7 +51,7 @@ export class SparseSet<T extends object = object> {
     set(entity: Aent, component: T): void {
         const idx = aentIndex(entity);
         const denseIdx = this.sparse[idx];
-        if (denseIdx !== undefined && denseIdx < this.dense.length && this.entities[denseIdx] === entity) {
+        if (denseIdx !== undefined && denseIdx >= 0 && denseIdx < this.dense.length && this.entities[denseIdx] === entity) {
             this.dense[denseIdx] = component;
             return;
         }
@@ -69,7 +69,7 @@ export class SparseSet<T extends object = object> {
     remove(entity: Aent): boolean {
         const idx = aentIndex(entity);
         const denseIdx = this.sparse[idx];
-        if (denseIdx === undefined || denseIdx >= this.dense.length || this.entities[denseIdx] !== entity) {
+        if (denseIdx === undefined || denseIdx < 0 || denseIdx >= this.dense.length || this.entities[denseIdx] !== entity) {
             return false;
         }
 

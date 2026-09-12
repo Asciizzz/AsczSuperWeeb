@@ -33,7 +33,7 @@ export function aentGen(entity: Aent): number {
  * Packs index and generation count into 1 Aent identifier.
  */
 export function aent(index: number, gen: number = 0): Aent {
-    return ((gen & AENT_GEN_MASK) << AENT_INDEX_BITS) | (index & AENT_INDEX_MASK);
+    return (((gen & AENT_GEN_MASK) << AENT_INDEX_BITS) | (index & AENT_INDEX_MASK)) >>> 0;
 }
 
 /**
