@@ -5,7 +5,7 @@ import type { AwgpuBuffer } from "./buffer.js";
 
 export interface AwgpuDrawCommand {
     pipeline: AwgpuRenderPipeline;
-    vertexBuffer: GPUBuffer | AwgpuBuffer | (GPUBuffer | AwgpuBuffer)[];
+    vertexBuffer?: GPUBuffer | AwgpuBuffer | (GPUBuffer | AwgpuBuffer)[];
     indexBuffer?: GPUBuffer | AwgpuBuffer;
     indexFormat?: GPUIndexFormat;
     indexCount?: number;
@@ -113,19 +113,21 @@ export class AwgpuPass {
             }
 
             // 3. Vertex Buffers
-            if (Array.isArray(cmd.vertexBuffer)) {
-                for (let vSlot = 0; vSlot < cmd.vertexBuffer.length; vSlot++) {
-                    const vbo = resolveGpuBuffer(cmd.vertexBuffer[vSlot]);
-                    if (activeVbos[vSlot] !== vbo) {
-                        pass.setVertexBuffer(vSlot, vbo);
-                        activeVbos[vSlot] = vbo;
+            if (cmd.vertexBuffer) {
+                if (Array.isArray(cmd.vertexBuffer)) {
+                    for (let vSlot = 0; vSlot < cmd.vertexBuffer.length; vSlot++) {
+                        const vbo = resolveGpuBuffer(cmd.vertexBuffer[vSlot]);
+                        if (activeVbos[vSlot] !== vbo) {
+                            pass.setVertexBuffer(vSlot, vbo);
+                            activeVbos[vSlot] = vbo;
+                        }
                     }
-                }
-            } else {
-                const vbo = resolveGpuBuffer(cmd.vertexBuffer);
-                if (activeVbos[0] !== vbo) {
-                    pass.setVertexBuffer(0, vbo);
-                    activeVbos[0] = vbo;
+                } else {
+                    const vbo = resolveGpuBuffer(cmd.vertexBuffer);
+                    if (activeVbos[0] !== vbo) {
+                        pass.setVertexBuffer(0, vbo);
+                        activeVbos[0] = vbo;
+                    }
                 }
             }
 

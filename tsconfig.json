@@ -16,6 +16,8 @@
     "WeebRender/**/*.ts",
     "prototypes/Akettle/**/*.ts",
     "prototypes/AwgpuShadowDemo/**/*.ts",
+    "prototypes/MinimalShadow/**/*.ts",
+    "prototypes/RhythmGraphicArt/**/*.ts",
     "prototypes/SuperSimple/**/*.ts",
     "prototypes/RttCube/**/*.ts",
     "hub/**/*.ts"

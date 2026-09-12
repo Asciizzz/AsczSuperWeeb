@@ -179,7 +179,7 @@ export class AwgpuSampler {
     }
 
     /**
-     * Creates hardware depth comparison sampler for shadow mapping.
+     * Creates hardware depth comparison sampler (e.g. for depth tests, shadow mapping, or depth peeling).
      */
     static createComparison(
         device: GPUDevice,
@@ -188,7 +188,7 @@ export class AwgpuSampler {
             label?: string;
         } = {}
     ): AwgpuSampler {
-        const label = options.label ?? "AwgpuShadowSampler";
+        const label = options.label ?? "AwgpuComparisonSampler";
         const gpuSampler = device.createSampler({
             label,
             compare: options.compare ?? "less",
@@ -260,11 +260,12 @@ export class AwgpuRenderTarget {
 
     /**
      * Factory: Creates render target bound to canvas swapchain backbuffer.
+     * Set depthFormat: null to create a pure color screen target (e.g. for 2D/post-processing).
      */
     static createScreen(
         gfx: AwgpuDevice,
         options: {
-            depthFormat?: GPUTextureFormat;
+            depthFormat?: GPUTextureFormat | null;
             clearColor?: { r: number; g: number; b: number; a: number };
             label?: string;
         } = {}
@@ -273,16 +274,26 @@ export class AwgpuRenderTarget {
         const canvas = gfx.canvas!;
         const w = Math.max(1, canvas.width);
         const h = Math.max(1, canvas.height);
-        const depthFormat = options.depthFormat ?? "depth24plus";
+        const hasDepth = options.depthFormat !== null;
+        const depthFormat = hasDepth ? (options.depthFormat ?? "depth24plus") : undefined;
         const clearColor = options.clearColor ?? { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
         const label = options.label ?? "AwgpuScreenTarget";
 
-        const depthTex = AwgpuTexture.createDepth(device, {
-            width: w,
-            height: h,
-            format: depthFormat,
-            label: `${label}_Depth`,
-        });
+        let depthAttachment: AwgpuDepthAttachmentConfig | undefined;
+        if (depthFormat) {
+            const depthTex = AwgpuTexture.createDepth(device, {
+                width: w,
+                height: h,
+                format: depthFormat,
+                label: `${label}_Depth`,
+            });
+            depthAttachment = {
+                texture: depthTex,
+                depthClearValue: 1.0,
+                depthLoadOp: "clear",
+                depthStoreOp: "store",
+            };
+        }
 
         return new AwgpuRenderTarget(label, w, h, {
             isScreen: true,
@@ -295,12 +306,7 @@ export class AwgpuRenderTarget {
                     storeOp: "store",
                 },
             ],
-            depthAttachment: {
-                texture: depthTex,
-                depthClearValue: 1.0,
-                depthLoadOp: "clear",
-                depthStoreOp: "store",
-            },
+            depthAttachment,
             depthFormat,
             colorFormat: gfx.format ?? "bgra8unorm",
         });
@@ -308,6 +314,7 @@ export class AwgpuRenderTarget {
 
     /**
      * Factory: Creates offscreen color and depth render target (e.g. for HDR, G-buffer, or RTT).
+     * Set depthFormat: null to create a pure color offscreen target.
      */
     static createOffscreen(
         device: GPUDevice,
@@ -315,7 +322,7 @@ export class AwgpuRenderTarget {
         height: number,
         options: {
             colorFormat?: GPUTextureFormat;
-            depthFormat?: GPUTextureFormat;
+            depthFormat?: GPUTextureFormat | null;
             clearColor?: { r: number; g: number; b: number; a: number };
             label?: string;
         } = {}
@@ -323,7 +330,8 @@ export class AwgpuRenderTarget {
         const w = Math.max(1, width);
         const h = Math.max(1, height);
         const colorFormat = options.colorFormat ?? "rgba8unorm";
-        const depthFormat = options.depthFormat ?? "depth24plus";
+        const hasDepth = options.depthFormat !== null;
+        const depthFormat = hasDepth ? (options.depthFormat ?? "depth24plus") : undefined;
         const clearColor = options.clearColor ?? { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
         const label = options.label ?? "AwgpuOffscreenTarget";
 
@@ -335,12 +343,21 @@ export class AwgpuRenderTarget {
             label: `${label}_Color0`,
         });
 
-        const depthTex = AwgpuTexture.createDepth(device, {
-            width: w,
-            height: h,
-            format: depthFormat,
-            label: `${label}_Depth`,
-        });
+        let depthAttachment: AwgpuDepthAttachmentConfig | undefined;
+        if (depthFormat) {
+            const depthTex = AwgpuTexture.createDepth(device, {
+                width: w,
+                height: h,
+                format: depthFormat,
+                label: `${label}_Depth`,
+            });
+            depthAttachment = {
+                texture: depthTex,
+                depthClearValue: 1.0,
+                depthLoadOp: "clear",
+                depthStoreOp: "store",
+            };
+        }
 
         return new AwgpuRenderTarget(label, w, h, {
             isScreen: false,
@@ -352,12 +369,7 @@ export class AwgpuRenderTarget {
                     storeOp: "store",
                 },
             ],
-            depthAttachment: {
-                texture: depthTex,
-                depthClearValue: 1.0,
-                depthLoadOp: "clear",
-                depthStoreOp: "store",
-            },
+            depthAttachment,
             depthFormat,
             colorFormat,
         });

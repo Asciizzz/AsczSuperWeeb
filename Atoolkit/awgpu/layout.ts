@@ -6,7 +6,7 @@ import type { AwgpuTexture, AwgpuSampler } from "./target.js";
  */
 export enum AwgpuBindSlot {
     Pass = 0,       // Updated once per pass (ViewProj, Viewport, Time, Globals)
-    Phase = 1,      // Updated once per phase (Light arrays, Shadow depth maps, Comparison samplers)
+    Phase = 1,      // Updated once per phase (Environment maps, global phase buffers, phase textures)
     Material = 2,   // Updated per material switch (Material parameters, Color/Normal textures, Standard samplers)
     Instance = 3,   // Updated per draw/batch (Model matrix, Normal matrix, Bone palette storage)
 }

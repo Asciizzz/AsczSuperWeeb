@@ -153,7 +153,7 @@ export class AwgpuRenderPipeline {
             nativeDesc.multisample = descriptor.multisample;
         }
 
-        // 4. Fragment Stage (Optional: omitted for depth-only shadow passes)
+        // 4. Fragment Stage (Optional: omitted for depth-only passes such as z-prepasses or occluders)
         const hasFragmentStage = !!descriptor.fragment;
         if (descriptor.fragment) {
             const fsCode = descriptor.fragment.code ?? descriptor.vertex.code;
