@@ -1,57 +1,56 @@
 # AsczSuperWeeb
 
-A modular, zero-allocation reactive dataflow framework and WebGPU rendering engine engineered for high-density architectural digital twins and real-time scientific simulation.
+TypeScript computational toolkit and graphics architecture providing cache-coherent data structures, sparse-set ECS, allocation-free math, and domain-agnostic WebGPU execution.
+
+Repository centers primarily on `Atoolkit`, modular foundation for high-performance applications, with legacy modules preserved in `_old/` and experimental rendering abstractions in `WeebRender/`.
 
 ---
 
-## Overview
+## Atoolkit Packages
 
-AsczSuperWeeb is divided into two distinct architectural layers:
+`Atoolkit` provides zero-dependency building blocks designed for composability and raw hardware throughput:
 
-1. **`Atoolkit`**: A zero-dependency computational foundation providing cache-conscious data structures, a sparse-set Entity Component System, stateless value circuits, allocation-free linear algebra, and low-level hardware abstractions.
-2. **`WeebRender`**: A modern rendering engine built atop `Atoolkit` featuring an AST-driven procedural Shader Graph compiler targeting pure WebGPU Shading Language (WGSL), universal static and skinned mesh vertex pipelines, decoupled render pass execution, and streaming binary glTF/GLB ingestion.
-
----
-
-## Repository Architecture
-
-```text
-AsczSuperWeeb/
-├── Atoolkit/
-│   ├── acmp/          # Declarative component metadata and bitmask indexing
-│   ├── acircuit/      # Stateless socket circuit with topological execution
-│   ├── adiag/         # Zero-overhead diagnostic assertions and runtime contracts
-│   ├── aecs/          # High-performance cache-coherent Sparse-Set ECS
-│   ├── alm/           # Zero-allocation linear algebra (Vec2, Vec3, Vec4, Mat4, Quat)
-│   ├── awgl2/         # WebGL2 fallback hardware abstraction
-│   └── awgpu/         # WebGPU device wrappers, buffer pools, and bind group managers
-└── WeebRender/
-    ├── camera.ts      # Projection and view camera abstractions
-    ├── loader/        # Asynchronous binary glTF/GLB streaming asset parser
-    ├── shadercmp.ts   # Shader component and uniform parameter descriptors
-    ├── mesh.ts        # Vertex buffers, submesh ranges, and index topology
-    ├── renderer.ts    # Decoupled WebGPU frame renderer and draw call scheduler
-    ├── shader/        # Node-based Shader Graph compiler and WGSL generator
-    ├── skeleton.ts    # Bone hierarchy and skeletal skinning storage buffers
-    ├── texture.ts     # WebGPU texture resources and sampler wrappers
-    └── transform.ts   # Spatial transforms and local-to-world matrix propagation
-```
+| Package | Role | Key Capabilities | Documentation |
+| :--- | :--- | :--- | :--- |
+| **[`acmp`](./Atoolkit/acmp/ReadMe.md)** | Execution Component | Atomic execution unit (`exec(ctx, diag): TRet`) operating on mutable contexts with zero control-flow overhead. | [acmp ReadMe](./Atoolkit/acmp/ReadMe.md) |
+| **[`aecs`](./Atoolkit/aecs/ReadMe.md)** | Entity Component System | Sparse-set ECS with contiguous dense typed storage, O(1) mutations, and direct set intersection joins (`join2`, `join3`). | [aecs ReadMe](./Atoolkit/aecs/ReadMe.md) |
+| **[`acircuit`](./Atoolkit/acircuit/ReadMe.md)** | Value Computation Circuit | Directed computation circuit with typed socket endpoints, 1-to-N fan-out, Kahn topological sorting, and dependency caching. | [acircuit ReadMe](./Atoolkit/acircuit/ReadMe.md) |
+| **[`awgpu`](./Atoolkit/awgpu/ReadMe.md)** | Hardware WebGPU Engine | Domain-agnostic GPU execution engine featuring multi-pass render targets, 4-tier frequency bind slots, automated vertex strides, and depth-only pipelines. | [awgpu ReadMe](./Atoolkit/awgpu/ReadMe.md) |
+| **[`alm`](./Atoolkit/alm/ReadMe.md)** | 3D Linear Algebra | Native `Float32Array` vectors and matrices (`Mat4`, `Vec2/3/4`, `Quat`) supporting WebGPU [0, 1] clip space and out-parameter zero-allocation operations. | [alm ReadMe](./Atoolkit/alm/ReadMe.md) |
+| **[`adiag`](./Atoolkit/adiag/ReadMe.md)** | Diagnostic Telemetry Bus | Structured diagnostics bus with circular ring buffer logging, templated message compilation, and pointer-based causal error chaining (`ref`). | [adiag ReadMe](./Atoolkit/adiag/ReadMe.md) |
 
 ---
 
-## Key Features
+## Repository Structure
 
-- **Zero Allocation Philosophy**: Mathematical operations in `alm` use out-parameter conventions (`add(out, a, b)`), eliminating heap object churn and garbage collection pauses during animation and simulation loops.
-- **Cache-Coherent Entity Component System**: `aecs` employs sparse-set indexing with dense TypedArray storage, delivering O(1) component additions/removals and linear contiguous iteration for 100,000+ entities.
-- **Topological DAG Scheduling**: `aflow` orders simulation passes, transform evaluations, and render passes deterministically without manual ordering bugs.
-- **Universal Dual-Stride Shaders**: Shaders authored via `WeebRender/shader` automatically emit dual vertex pipeline entry points (`vs_static` with 32-byte stride, `vs_skinned` with 64-byte stride), allowing identical shader graphs to render static and animated meshes seamlessly.
-- **Direct WebGPU Target**: Native WGSL shader emission and command buffer recording without legacy wrapper overhead.
+* `Atoolkit/`: Production toolkit modules
+  * `acmp/`: Atomic execution component primitive
+  * `aecs/`: Sparse-set Entity Component System
+  * `acircuit/`: Socket-based computation circuit
+  * `alm/`: Allocation-free 3D linear algebra
+  * `awgpu/`: Hardware WebGPU execution engine
+  * `adiag/`: Diagnostic collector and causal trace bus
+* `WeebRender/`: Experimental graphics library built on toolkit primitives
+* `_old/`: Archived legacy modules preserved for reference (`aflow`, `agraph`, `awgl2`, legacy `awgpu`)
+* `prototypes/`: Interactive testbeds and runnable demonstrations
+  * `AwgpuShadowDemo/`: Multi-pass hardware shadow mapping with PCF comparison filtering
+  * `Akettle/`: Asset storage and ECS inspection workbench
 
 ---
 
-## Quirks
+## Core Engineering Principles
 
-The "Weeb" is the name is like an inside joke, Web, Weeb, get it?
+1. **Zero-Allocation Math Hot-Paths**:
+   * All functions in `alm` write directly into destination buffers passed via `out` arguments (`Mat4.mul(viewProj, model, out)`), eliminating garbage collection pressure during 60+ FPS simulation loops.
+
+2. **Cache-Coherent Sparse Storage**:
+   * `aecs` splits entity data into dense typed arrays (`ComponentSet`, `FloatSet`). Iteration runs through sequential, contiguous memory blocks rather than pointer-chasing scene graphs.
+
+3. **4-Tier GPU Bind Frequency Organization**:
+   * `awgpu` arranges GPU state into four standard frequency tiers (`Pass = 0`, `Phase = 1`, `Material = 2`, `Instance = 3`), eliminating redundant driver state changes during high-density multi-object batching.
+
+4. **Isolated Diagnostic Chaining**:
+   * Components report errors to `adiag` without throwing exceptions across subsystem boundaries. Causal reference pointers (`ref`) preserve root cause traces across complex asynchronous pipelines.
 
 ---
 
@@ -59,8 +58,8 @@ The "Weeb" is the name is like an inside joke, Web, Weeb, get it?
 
 ### Prerequisites
 
-- Node.js (version 18 or later recommended)
-- A browser supporting WebGPU (Google Chrome 113+, Microsoft Edge 113+)
+* Node.js (version 18 or later)
+* WebGPU-capable browser (Google Chrome 113+, Microsoft Edge 113+, or Firefox Nightly with WebGPU enabled)
 
 ### Installation
 
@@ -68,10 +67,18 @@ The "Weeb" is the name is like an inside joke, Web, Weeb, get it?
 npm install
 ```
 
-### Type Checking
+### Verification
 
-```bash
-npx tsc --noEmit
+Run TypeScript compilation checks:
+
+```cmd
+cmd /c npx tsc --noEmit
+```
+
+Run Vite production build:
+
+```cmd
+cmd /c npx vite build
 ```
 
 ---
