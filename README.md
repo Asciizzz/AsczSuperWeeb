@@ -30,9 +30,6 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
   * `adiag/`: Diagnostic collector and causal trace bus
 * `WeebRender/`: Experimental graphics library built on toolkit primitives
 * `_old/`: Archived legacy modules preserved for reference (`acmp`, `aflow`, `agraph`, `awgl2`, legacy `awgpu`)
-* `prototypes/`: Interactive testbeds and runnable demonstrations
-  * `AwgpuShadowDemo/`: Multi-pass hardware shadow mapping with PCF comparison filtering
-  * `Akettle/`: Asset storage and ECS inspection workbench
 
 ---
 
