@@ -32,7 +32,7 @@ Atoolkit already contains the pieces needed for this split:
 - `Acmp` packages one executable operation as `exec(ctx, diag)`.
 - `Adiag` reports structured failures without forcing every backend to throw.
 - `Awgpu` provides a mutable GPU context and components for frame, pass, binding, buffer, draw, dispatch, and copy operations.
-- `Aecs` stores persistent application data that external engines query.
+- `aecs` stores persistent application data in standalone component sets.
 - `Acircuit` describes stateless value computation and can supply shader or resource-generation logic.
 
 The main change is naming and ownership. `Awgpu` and `Awgl2` should become backend implementations beneath a shared `WeebGraphic` contract instead of being understood as renderer internals.

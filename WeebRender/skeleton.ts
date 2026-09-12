@@ -1,4 +1,4 @@
-import { type Aecs } from "../Atoolkit/aecs/index.js";
+import { ComponentSet } from "../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, Quat, type M16, type V3, type Q4 } from "../Atoolkit/alm/index.js";
 
 // ==================== Interfaces & Classes ====================
@@ -108,8 +108,11 @@ function ensureScratchCapacity(capacity: number): void {
  * System that evaluates joint matrices in topological order and writes
  * (worldJoint * invBind) directly into the entity's jointPalette buffer.
  */
-export function updateSkinSystem(ecs: Aecs): void {
-    for (const [_, skin] of ecs.query(SkinCmp)) {
+export function updateSkinSystem(skins: ComponentSet<SkinCmp> | { skins: ComponentSet<SkinCmp> }): void {
+    const set = "skins" in skins ? skins.skins : skins;
+    const len = set.dense.length;
+    for (let i = 0; i < len; i++) {
+        const skin = set.dense[i];
         if (!skin.isDirty) continue;
 
         const joints = skin.rSkeleton.joints;

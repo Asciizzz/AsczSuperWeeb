@@ -1,9 +1,12 @@
 import { Acmp } from "../../Atoolkit/acmp/index.js";
 import { type Adiag } from "../../Atoolkit/adiag/index.js";
-import { type Aecs } from "../../Atoolkit/aecs/index.js";
+import { ComponentSet } from "../../Atoolkit/aecs/index.js";
+import { WeebScene } from "../scene.js";
 import { Mat4, Vec3, type M16 } from "../../Atoolkit/alm/index.js";
 import {
     Backend,
+    BeginFrame,
+    EndFrame,
     RenderPass,
     EndPass,
     type AwgpuCtx,
@@ -112,7 +115,11 @@ export class WgpuRenderer {
     private shaderBindGroupCache = new Map<string, GPUBindGroup>();
 
     // Active frame render state
-    currentEcs: Aecs | null = null;
+    currentScene: WeebScene | null = null;
+    meshes: ComponentSet<MeshCmp> | null = null;
+    transforms: ComponentSet<TransformCmp> | null = null;
+    shaders: ComponentSet<ShaderCmp> | null = null;
+    skins: ComponentSet<SkinCmp> | null = null;
     currentCamera: CameraCmp | null = null;
     clearColor = { r: 0.08, g: 0.09, b: 0.12, a: 1.0 };
     drawCallCount = 0;
@@ -528,9 +535,10 @@ export class WgpuRenderer {
      * Executes all scene draw calls inside the active RenderPass.
      */
     executeDrawCalls(pass: GPURenderPassEncoder): void {
-        const ecs = this.currentEcs;
+        const meshes = this.meshes;
+        const transforms = this.transforms;
         const camera = this.currentCamera;
-        if (!ecs || !camera || !this.cameraBindGroup) return;
+        if (!meshes || !transforms || !camera || !this.cameraBindGroup) return;
 
         const device = this.backend!.device!;
         const queue = device.queue;
@@ -557,13 +565,16 @@ export class WgpuRenderer {
         this.drawCallCount = 0;
 
         // 3. Flat Query: ECS Entities with MeshCmp (holding GMesh)
-        for (const [entity, meshCmp] of ecs.query(MeshCmp)) {
+        for (let i = 0; i < meshes.dense.length; i++) {
+            const meshCmp = meshes.dense[i];
             if (!meshCmp.visible) continue;
             const gMesh = meshCmp.rMesh as GMesh;
             if (!gMesh || !gMesh.vertexBuffer || !gMesh.indexBuffer || gMesh.indexCount === 0) continue;
 
+            const entity = meshes.entities[i];
+
             // Resolve Transform: If missing, fallback to identity matrix (0, 0, 0)
-            const transform = ecs.get(entity, TransformCmp);
+            const transform = transforms.get(entity);
             let worldMatrix = IDENTITY_MATRIX;
             if (transform) {
                 if (transform.isDirty) {
@@ -573,10 +584,10 @@ export class WgpuRenderer {
             }
 
             // Resolve Shader Component
-            const shaderCmp = ecs.get(entity, ShaderCmp);
+            const shaderCmp = this.shaders?.get(entity);
 
             // Resolve Skin Component directly on the entity
-            const skinCmp = ecs.get(entity, SkinCmp);
+            const skinCmp = this.skins?.get(entity);
 
             // Directly bind vertex and index buffers from GMesh
             pass.setVertexBuffer(0, gMesh.vertexBuffer);
@@ -680,6 +691,7 @@ export class WgpuRenderer {
                 }
             }
         }
+        this.currentScene?.flush();
     }
 
     /**
@@ -698,8 +710,12 @@ export class WgpuRenderer {
     /**
      * Updates active scene and camera state for the upcoming pass.
      */
-    setScene(ecs: Aecs, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): this {
-        this.currentEcs = ecs;
+    setScene(scene: WeebScene, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): this {
+        this.currentScene = scene;
+        this.meshes = scene.meshes;
+        this.transforms = scene.transforms;
+        this.shaders = scene.shaders;
+        this.skins = scene.skins;
         this.currentCamera = camera;
         if (clearColor) {
             this.clearColor = { ...clearColor };
@@ -722,5 +738,20 @@ export class WgpuRenderer {
         for (const component of this.components) {
             component.exec(ctx, diag);
         }
+    }
+
+    private frameStart = new BeginFrame();
+    private frameEnd = new EndFrame();
+
+    /**
+     * Standalone single-pass render helper. Begins the frame, executes scene pass components, and submits.
+     */
+    render(scene: WeebScene, camera: CameraCmp, clearColor?: { r: number; g: number; b: number; a: number }): void {
+        this.setScene(scene, camera, clearColor);
+        if (!this.backend) return;
+        const ctx = this.backend.newCtx();
+        this.frameStart.exec(ctx);
+        this.exec(ctx);
+        this.frameEnd.exec(ctx);
     }
 }

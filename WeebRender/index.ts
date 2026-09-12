@@ -1,3 +1,10 @@
+// Scene & Entity Management
+export {
+    WeebScene,
+    type WeebSceneOptions,
+    type EngineInstance,
+} from "./scene.js";
+
 // 3D Transforms
 export {
     TransformCmp,

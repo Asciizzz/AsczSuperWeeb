@@ -1,7 +1,7 @@
 # WeebRender
 
 3D rendering engine built on the `Atoolkit` library suite:
-- `Aecs`: Sparse-set Entity Component System for state queries.
+- `aecs`: Standalone component sets and entity pools for state storage.
 - `Acmp`: Composable execution component payloads.
 - Flat component arrays: Explicit execution order for frame and render-pass work.
 - `Alm`: Linear algebra matrices and quaternions.
@@ -133,8 +133,8 @@ The renderer operates on GPU handles rather than auto-converting CPU buffers on 
 ## Quickstart
 
 ```typescript
-import { Aecs } from "../Atoolkit/aecs/index.js";
 import {
+    WeebScene,
     WgpuRenderer,
     CameraCmp,
     TransformCmp,
@@ -144,6 +144,8 @@ import {
     ShaderCircuit,
     ColorNode,
     WgpuShader,
+    FrameStart,
+    FrameEnd,
 } from "./index.js";
 
 // 1. Author Shader Circuit
@@ -179,16 +181,16 @@ await renderer.init();
 // 5. Upload CPU Mesh to GPU Handle
 const gMesh = renderer.createMesh(cpuMesh);
 
-// 6. Spawn Renderable Entity in ECS
-const ecs = new Aecs();
-ecs.spawn(
+// 6. Spawn Renderable Entity in Scene
+const scene = new WeebScene();
+scene.spawn(
     new TransformCmp([0, 0, 0]),
     new MeshCmp(gMesh),
     new ShaderCmp([rockShader], [{ tintColor: [1.0, 0.2, 0.2, 1.0] }])
 );
 
 // 7. Render Frame
-renderer.setScene(ecs, camera);
+renderer.setScene(scene, camera);
 const ctx = renderer.backend!.newCtx();
 new FrameStart().exec(ctx);
 renderer.exec(ctx);

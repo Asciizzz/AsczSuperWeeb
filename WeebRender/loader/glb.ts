@@ -7,8 +7,9 @@ import { ShaderCmp } from "../shadercmp.js";
 import { GShader } from "../wgpu/wshader.js";
 import { Texture } from "../texture.js";
 import { STANDARD_ATTRIBUTES, SKINNED_ATTRIBUTES } from "../extensions/presets.js";
-import { Mat4, Vec3, Quat, type V3, type Q4, type M16 } from "../../Atoolkit/alm/index.js";
-import type { Aecs } from "../../Atoolkit/aecs/index.js";
+import type { WeebScene } from "../scene.js";
+import type { Entity } from "../../Atoolkit/aecs/index.js";
+import { Vec3, Quat, Mat4 } from "../../Atoolkit/alm/index.js";
 import type { LoadedModel, LoadedMaterial } from "./types.js";
 
 // glTF Component Type constants
@@ -740,15 +741,15 @@ export async function loadGlbFromFile(file: File): Promise<LoadedModel[]> {
 }
 
 /**
- * Spawns a loaded model into an Aecs scene adhering to the single-entity contract.
+ * Spawns a loaded model into a WeebScene adhering to the single-entity contract.
  * Co-locates TransformCmp, MeshCmp, and SkinCmp directly on the spawned entity.
  */
 export function spawnLoadedModel(
-    ecs: Aecs,
+    scene: WeebScene,
     model: LoadedModel,
     transformOrPos?: TransformCmp | ArrayLike<number>,
     device?: GPUDevice
-): number {
+): Entity {
     let transform: TransformCmp;
     if (transformOrPos instanceof TransformCmp) {
         transform = transformOrPos;
@@ -788,8 +789,8 @@ export function spawnLoadedModel(
 
     if (model.skeleton) {
         const skinCmp = new SkinCmp(model.skeleton);
-        return ecs.spawn(transform, meshCmp, skinCmp, shaderCmp);
+        return scene.spawn(transform, meshCmp, skinCmp, shaderCmp);
     }
 
-    return ecs.spawn(transform, meshCmp, shaderCmp);
+    return scene.spawn(transform, meshCmp, shaderCmp);
 }

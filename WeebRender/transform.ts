@@ -1,4 +1,4 @@
-import { type Aecs } from "../Atoolkit/aecs/index.js";
+import { ComponentSet } from "../Atoolkit/aecs/index.js";
 import { Mat4, Vec3, Quat, DEG2RAD, type M16, type V3, type Q4 } from "../Atoolkit/alm/index.js";
 
 // Reusable scratch variables for rotation calculations (zero garbage collection)
@@ -117,8 +117,11 @@ export class TransformCmp {
  * System that updates world matrices for all dirty TransformCmp entities in flat order.
  * High-performance, zero recursion, zero hierarchy.
  */
-export function updateTransformSystem(ecs: Aecs): void {
-    for (const [_, transform] of ecs.query(TransformCmp)) {
+export function updateTransformSystem(transforms: ComponentSet<TransformCmp> | { transforms: ComponentSet<TransformCmp> }): void {
+    const set = "transforms" in transforms ? transforms.transforms : transforms;
+    const len = set.dense.length;
+    for (let i = 0; i < len; i++) {
+        const transform = set.dense[i];
         if (transform.isDirty) {
             transform.updateMatrix();
         }
