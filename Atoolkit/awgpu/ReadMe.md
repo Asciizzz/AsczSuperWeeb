@@ -1,242 +1,205 @@
 # Awgpu
 
-WebGPU resource creation helpers and modular execution components.
+Domain-agnostic WebGPU execution engine managing hardware device presentation, render targets, dynamic buffers, bind group frequency layouts, pipeline compilation, pass recording, and frame sequencing.
 
 ---
 
-## Core Characteristics
+## Architecture Overview
 
-- **Direct WebGPU Access**: Operates directly on buffers, bind groups, pipelines, and passes.
-- **Diagnostic Logging**: Operations return null and log structured records to `Adiag` on failure instead of throwing unhandled exceptions.
-- **Automatic Buffer Alignment**: Rounds sizes to 4-byte boundaries, auto-unmaps staging buffers, and derives cumulative vertex layout offsets.
-- **Atomic Component Execution**: Pass recording, pipeline binding, and draw commands run as atomic `Acmp` components via `exec(ctx, diag)`.
+Awgpu structures GPU workloads across seven core layers:
+
+1. **`AwgpuDevice`**: Adapter negotiation, GPUDevice lifetime, queue submission, and canvas swapchain configuration.
+2. **`AwgpuRenderTarget`**: Color and depth attachment descriptors supporting screen swapchains, offscreen MRT, and depth-only targets.
+3. **`AwgpuTexture` & `AwgpuSampler`**: Hardware texture views and samplers (filtering and depth comparison).
+4. **`AwgpuBuffer` & `AwgpuBufferPool`**: Aligned uniform, storage, vertex, and index buffers with per-frame pool recycling.
+5. **`AwgpuBindSlot` & `AwgpuBindGroup`**: 4-tier frequency slot organization (`Pass = 0`, `Phase = 1`, `Material = 2`, `Instance = 3`) with fluent layout builder.
+6. **`AwgpuRenderPipeline` & `AwgpuComputePipeline`**: Pipeline compilation with automatic vertex stride/offset calculations and optional fragment stage for depth-only passes.
+7. **`AwgpuPass` & `AwgpuFrame`**: Multi-pass command recording with redundant pipeline/bind group state filtering.
 
 ---
 
-## Quick Start
+## 1. Device Initialization
 
-```ts
-import { Adiag } from "../adiag/index.js";
-import {
-    Backend,
-    createBuffer,
-    createUniformBuffer,
-    createShaderModule,
-    createDepthTexture,
-    createVertexLayout,
-    BeginFrame,
-    RenderPass,
-    UsePipeline,
-    SetBindGroups,
-    SetBuffers,
-    DrawIndexed,
-    EndPass,
-    EndFrame,
-    type AwgpuCtx,
-} from "../awgpu/index.js";
+```typescript
+import { AwgpuDevice } from "./device.js";
 
-const diag = new Adiag();
-
-// 1. Initialize Backend
-const backend = await Backend.create(canvas, {
-    format: navigator.gpu.getPreferredCanvasFormat(),
+// Canvas presentation
+const device = await AwgpuDevice.create({
+    canvas: "#renderCanvas",
+    powerPreference: "high-performance",
 });
-const device = backend.device!;
 
-// 2. Allocate Buffers
-const vertexBuffer = createBuffer(device, {
-    label: "MeshVBO",
-    data: new Float32Array([...]),
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    diag,
-})!;
+// Headless device for compute or offscreen testing
+const headless = await AwgpuDevice.createHeadless();
+```
 
-const indexBuffer = createBuffer(device, {
-    label: "MeshIBO",
-    data: new Uint16Array([...]),
-    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    diag,
-})!;
+---
 
-const uniformBuffer = createUniformBuffer(device, {
-    label: "MeshUniforms",
-    size: 128,
-    diag,
-})!;
+## 2. Render Targets
 
-// 3. Compile Shaders & Derive Vertex Layout
-const shaderModule = createShaderModule(device, {
-    label: "MeshShader",
-    code: wgslShaderCode,
-    validate: true,
-    diag,
-})!;
+`AwgpuRenderTarget` configures color attachments and depth-stencil targets:
+
+```typescript
+import { AwgpuRenderTarget } from "./target.js";
+
+// Canvas presentation target
+const screenTarget = AwgpuRenderTarget.createScreen(device, {
+    depthFormat: "depth24plus",
+    clearColor: { r: 0.1, g: 0.1, b: 0.15, a: 1.0 },
+});
+
+// Depth-only target for shadow maps
+const shadowTarget = AwgpuRenderTarget.createDepthOnly(device.device, 2048, 2048, {
+    depthFormat: "depth32float",
+});
+
+// Offscreen color + depth target for post-processing or RTT
+const offscreenTarget = AwgpuRenderTarget.createOffscreen(device.device, 1920, 1080, {
+    colorFormat: "rgba8unorm",
+    depthFormat: "depth24plus",
+});
+```
+
+---
+
+## 3. Buffers and Memory Allocation
+
+`AwgpuBuffer` wraps GPUBuffer with alignment guarantees:
+
+```typescript
+import { AwgpuBuffer, AwgpuBufferPool } from "./buffer.js";
+
+// Uniform buffer aligned to 16 bytes
+const uniformBuf = AwgpuBuffer.createUniform(device.device, new Float32Array(16));
+
+// Vertex buffer aligned to 4 bytes
+const vertexBuf = AwgpuBuffer.createVertex(device.device, vertexData);
+
+// Index buffer
+const indexBuf = AwgpuBuffer.createIndex(device.device, indexData);
+
+// Dynamic per-frame uniform pool
+const pool = new AwgpuBufferPool(GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+const frameUniform = pool.acquire(device.device, 64);
+```
+
+---
+
+## 4. Bind Group Layouts and Frequency Slots
+
+`AwgpuBindSlot` organizes bindings across four standard update frequencies:
+
+```typescript
+import {
+    AwgpuBindSlot,
+    AwgpuBindGroupLayoutBuilder,
+    AwgpuBindGroup,
+} from "./layout.js";
+
+// Pass Layout (Slot 0)
+const passLayout = new AwgpuBindGroupLayoutBuilder()
+    .addUniform(0) // ViewProj matrix
+    .build(device.device, "PassLayout");
+
+// Material Layout (Slot 2)
+const materialLayout = new AwgpuBindGroupLayoutBuilder()
+    .addUniform(0) // Material constants
+    .addTexture(1) // Base color texture
+    .addSampler(2) // Linear sampler
+    .build(device.device, "MaterialLayout");
+
+// Instantiate BindGroup
+const passBindGroup = AwgpuBindGroup.create(device.device, passLayout, [
+    { binding: 0, resource: cameraBuffer },
+], { slot: AwgpuBindSlot.Pass });
+```
+
+---
+
+## 5. Pipeline Creation
+
+`AwgpuRenderPipeline` compiles shaders and sets primitive, depth, and multisample state:
+
+```typescript
+import { AwgpuRenderPipeline, createVertexLayout } from "./pipeline.js";
 
 const vertexLayout = createVertexLayout([
-    { shaderLocation: 0, format: "float32x3" }, // Offset 0,  Size 12
-    { shaderLocation: 1, format: "float32x3" }, // Offset 12, Size 12
-    { shaderLocation: 2, format: "float32x3" }, // Offset 24, Size 12 -> ArrayStride: 36
+    { shaderLocation: 0, format: "float32x3" }, // Position
+    { shaderLocation: 1, format: "float32x3" }, // Normal
+    { shaderLocation: 2, format: "float32x2" }, // UV
 ]);
 
-// 4. Pipeline & Bind Group
-const renderPipeline = device.createRenderPipeline({
-    label: "MeshPipeline",
-    layout: "auto",
-    vertex: { module: shaderModule, entryPoint: "vs_main", buffers: [vertexLayout] },
-    fragment: { module: shaderModule, entryPoint: "fs_main", targets: [{ format: backend.format! }] },
-    primitive: { topology: "triangle-list", cullMode: "back" },
-    depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+const pipeline = AwgpuRenderPipeline.create(device.device, {
+    label: "ForwardLightingPipeline",
+    bindGroupLayouts: [passLayout, phaseLayout, materialLayout, instanceLayout],
+    vertex: {
+        code: shaderCode,
+        entryPoint: "vs_main",
+        buffers: [vertexLayout],
+    },
+    fragment: {
+        code: shaderCode,
+        entryPoint: "fs_main",
+        targets: [{ format: device.format }],
+    },
+    depthStencil: {
+        format: "depth24plus",
+        depthWriteEnabled: true,
+        depthCompare: "less",
+    },
 });
+```
 
-const bindGroup = device.createBindGroup({
-    layout: renderPipeline.getBindGroupLayout(0),
-    entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+Depth-only pipelines omit the fragment stage entirely:
+
+```typescript
+const depthPipeline = AwgpuRenderPipeline.create(device.device, {
+    label: "ShadowDepthPipeline",
+    bindGroupLayouts: [shadowPassLayout, null, null, instanceLayout],
+    vertex: {
+        code: shadowShaderCode,
+        buffers: [vertexLayout],
+    },
+    depthStencil: {
+        format: "depth32float",
+        depthWriteEnabled: true,
+        depthCompare: "less",
+    },
 });
-
-let depthTexture = createDepthTexture(device, {
-    width: canvas.width,
-    height: canvas.height,
-    format: "depth24plus",
-    diag,
-})!;
-
-// 5. Compose Execution Components
-const pipeline = [
-    new BeginFrame("MainFrame"),
-    new RenderPass({
-        colorAttachments: (ctx: AwgpuCtx) => [{
-            view: ctx.canvasCtx!.getCurrentTexture().createView(),
-            clearValue: { r: 0.02, g: 0.02, b: 0.03, a: 1.0 },
-            loadOp: "clear",
-            storeOp: "store",
-        }],
-        depthStencilAttachment: () => ({
-            view: depthTexture.createView(),
-            depthClearValue: 1.0,
-            depthLoadOp: "clear",
-            depthStoreOp: "store",
-        }),
-    }),
-    new UsePipeline(renderPipeline),
-    new SetBindGroups([{ index: 0, bindGroup }]),
-    new SetBuffers({
-        vertex: [{ slot: 0, buffer: vertexBuffer }],
-        index: { buffer: indexBuffer, format: "uint16" },
-    }),
-    new DrawIndexed({ indexCount: 36 }),
-    new EndPass(),
-    new EndFrame(),
-];
-
-// 6. Frame Loop
-function render() {
-    backend.queue!.writeBuffer(uniformBuffer, 0, mvpMatrixData);
-    const ctx = backend.newCtx();
-    for (let i = 0; i < pipeline.length; i++) {
-        pipeline[i].exec(ctx, diag);
-    }
-    requestAnimationFrame(render);
-}
-render();
 ```
 
 ---
 
-## Utilities
+## 6. Pass Recording and Frame Sequencing
 
-### `createBuffer(device, options)`
-Allocates `GPUBuffer` with automatic 4-byte alignment, deriving byte sizes from `data` when provided.
+`AwgpuPass` records draw commands with automatic state filtering:
 
-```ts
-const vbo = createBuffer(device, {
-    label: "PositionsVBO",
-    data: new Float32Array([...]),
-    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    diag,
+```typescript
+import { AwgpuPass, AwgpuFrame } from "./index.js";
+
+// Pass 1: Depth Shadow Map
+const shadowPass = new AwgpuPass("ShadowPass", shadowTarget);
+shadowPass.addDraw({
+    pipeline: depthPipeline,
+    vertexBuffer: meshVbo,
+    indexBuffer: meshIbo,
+    indexCount: 36,
+    bindGroups: [shadowPassBindGroup, null, null, modelBindGroup],
 });
+
+// Pass 2: Main Forward Color
+const mainPass = new AwgpuPass("MainPass", screenTarget);
+mainPass.addDraw({
+    pipeline,
+    vertexBuffer: meshVbo,
+    indexBuffer: meshIbo,
+    indexCount: 36,
+    bindGroups: [passBindGroup, phaseBindGroup, materialBindGroup, modelBindGroup],
+});
+
+// Sequence and submit frame
+const frame = new AwgpuFrame();
+frame.addPass(shadowPass);
+frame.addPass(mainPass);
+frame.execute(device);
 ```
-
-### `createUniformBuffer(device, options)`
-Helper creating buffer with default usage `UNIFORM | COPY_DST`.
-
-### `createShaderModule(device, options)`
-Compiles WGSL code. When `validate: true` and `diag` is supplied, checks `getCompilationInfo()` and records compiler warnings/errors.
-
-### `createDepthTexture(device, options)`
-Allocates depth texture with default format `"depth24plus"` and usage `RENDER_ATTACHMENT`.
-
-### `createTexture2D(device, options)`
-Allocates 2D `GPUTexture` with customizable dimensions, format, and usage flags.
-
-### `createVertexLayout(attributes, stepMode?)`
-Calculates cumulative byte offsets and 4-byte aligned strides across attributes, returning a `GPUVertexBufferLayout`:
-
-```ts
-const layout = createVertexLayout([
-    { shaderLocation: 0, format: "float32x3" }, // offset: 0,  size: 12
-    { shaderLocation: 1, format: "float32x2" }, // offset: 12, size: 8
-    { shaderLocation: 2, format: "unorm8x4" },  // offset: 20, size: 4 -> stride: 24
-]);
-```
-
----
-
-## Context & Backend
-
-### `AwgpuCtx`
-Mutable object created per frame by `backend.newCtx()` and passed through every component:
-
-```ts
-interface AwgpuCtx {
-    device:     GPUDevice | null;
-    queue:      GPUQueue | null;
-    canvas:     HTMLCanvasElement | null;
-    canvasCtx:  GPUCanvasContext | null;
-    format:     GPUTextureFormat | null;
-
-    encoder:    GPUCommandEncoder | null;
-    pass:       GPURenderPassEncoder | GPUComputePassEncoder | null;
-    passKind:   "render" | "compute" | null;
-    pipeline:   GPURenderPipeline | GPUComputePipeline | null;
-
-    buffers: {
-        vertex:   Map<number, AwgpuVertexBufferEntry>;
-        index:    AwgpuIndexBufferEntry | null;
-        indirect: AwgpuIndirectBufferEntry | null;
-    };
-
-    bindGroups: Map<number, AwgpuBindGroupEntry>;
-    textures:   Map<number, unknown>;
-    ended:      boolean;
-}
-```
-
-- **`pass`**: Active command pass encoder (`GPURenderPassEncoder` or `GPUComputePassEncoder`).
-- **`passKind`**: Discriminator identifying whether execution is within a render or compute pass.
-- **`buffers`**: State cache of currently bound vertex buffer slots, index format, and indirect draw buffers.
-- **`bindGroups`**: Cache of active bind groups indexed by slot number.
-
-### `Backend`
-Handles adapter and device requests, canvas configuration, and frame context allocation:
-
-- `Backend.create(canvas, options)`: Asynchronous factory.
-- `backend.init()`: Requests adapter/device and configures canvas.
-- `backend.currentView()`: Returns `canvasCtx.getCurrentTexture().createView()`.
-- `backend.createEncoder(label?)`: Allocates new `GPUCommandEncoder`.
-- `backend.submit(encoderOrCommands)`: Submits commands to device queue.
-- `backend.newCtx()`: Allocates fresh `AwgpuCtx`.
-- `backend.destroy()`: Cleans up context configuration and device handles.
-
----
-
-## Execution Components
-
-Detailed signatures for component classes are documented in **[`cmps/ReadMe.md`](./cmps/ReadMe.md)**:
-
-- **Lifecycle**: `BeginFrame`, `EndFrame`
-- **Passes**: `RenderPass`, `ComputePass`, `EndPass`
-- **Pipelines and Bindings**: `UsePipeline`, `SetBindGroups`
-- **Buffers**: `SetBuffers` (Vertex slots, index buffer, indirect buffer)
-- **Draw Commands**: `Draw`, `DrawIndexed`, `DrawIndirect`, `DrawIndexedIndirect`
-- **Compute**: `Dispatch`, `DispatchIndirect`
-- **Memory Copy**: `CopyBufferToBuffer`, `CopyBufferToTexture`, `CopyTextureToBuffer`, `CopyTextureToTexture`

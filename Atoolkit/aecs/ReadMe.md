@@ -1,14 +1,14 @@
-# aecs_new
+# Aecs
 
 Minimalist, sets-first Entity Component System. Eliminates coordinator god classes and treats components as standalone sets.
 
 ## Architecture
 
 - **`Entity`**: Plain numeric identifier (`type Entity = number`).
-- **`EntityPool`**: Simple recycling pool that hands out numbers and reuses deleted IDs.
+- **`EntityPool`**: Recycling pool handing out numbers and reusing deleted IDs.
 - **`ComponentSet<T>`**: Contiguous sparse-dense storage for JavaScript objects or tags.
 - **`FloatSet`**: Contiguous `Float32Array` storage for high-frequency numeric data.
-- **`join2`, `join3`**: Direct set intersection functions that drive from the smallest set.
+- **`join2`, `join3`**: Direct set intersection functions driving from smallest set.
 
 ## API
 

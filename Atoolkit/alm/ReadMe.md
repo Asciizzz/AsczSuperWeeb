@@ -1,6 +1,6 @@
 # Alm (Math)
 
-3D linear algebra library for WebGPU and WebGL2, written for native `Float32Array` buffers.
+3D linear algebra library for WebGPU, written for native `Float32Array` buffers.
 
 ---
 
@@ -52,7 +52,7 @@ Mat4.mul(viewProj, model, mvp); // Zero GC allocations
   - `Mat4.rotateX(m, rad, out?)`: In-place rotation around X axis without temporary matrices.
   - `Mat4.rotateY(m, rad, out?)`: In-place rotation around Y axis.
   - `Mat4.rotateZ(m, rad, out?)`: In-place rotation around Z axis.
-  - `Mat4.rotate(m, axis, rad, out?)`: In-place rotation around a normalized arbitrary axis.
+  - `Mat4.rotate(m, axis, rad, out?)`: In-place rotation around normalized arbitrary axis.
   - `Mat4.rotateQ(m, q, out?)`: Rotates matrix by quaternion.
 - **Projections**:
   - `Mat4.perspectiveZO(fovy, aspect, near, far, out?)`: Zero-to-one [0, 1] depth range (WebGPU, Metal, DirectX 12).

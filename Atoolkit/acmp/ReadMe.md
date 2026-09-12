@@ -2,7 +2,7 @@
 
 Atomic execution component primitive for Atoolkit.
 
-Isolated execution unit receiving a mutable context (`ctx`) and optional diagnostic collector (`diag`), returning an optional typed result (`TRet`, defaults to `void`).
+Isolated execution unit receiving mutable context (`ctx`) and optional diagnostic collector (`diag`), returning optional typed result (`TRet`, defaults to `void`).
 
 ---
 
@@ -25,7 +25,7 @@ export class Acmp<TCtx = unknown, TRet = void> {
 }
 ```
 
-- **`ctx`**: Mutable execution context passed directly to the component.
+- **`ctx`**: Mutable execution context passed directly to component.
 - **`diag`**: Optional diagnostic collector for reporting errors and telemetry.
 - **`TRet`**: Typed return value (defaults to `void`). Used when queries or calculations return data directly rather than mutating `ctx`.
 
@@ -41,7 +41,7 @@ export class ProcessBuffer extends Acmp<BufferContext> {
 ```
 
 ### `acmp(fn)`
-Constructs `Acmp` instance from an inline function, inferring `TRet` automatically:
+Constructs `Acmp` instance from inline function, inferring `TRet` automatically:
 
 ```ts
 import { acmp } from "Atoolkit/acmp";

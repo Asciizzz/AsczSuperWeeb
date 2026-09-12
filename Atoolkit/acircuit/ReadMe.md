@@ -4,8 +4,8 @@ Directed computation circuit with typed socket endpoints, 1-to-1 input connectio
 
 ## Architecture
 
-- `Asocket` describes an input or output endpoint.
-- `Awire` describes a directed connection between two endpoints.
+- `Asocket` describes input or output endpoint.
+- `Awire` describes directed connection between two endpoints.
 - `Acnode` declares sockets and evaluates one input record through `process()`.
 - `Acircuit` owns graph topology, resolves dependencies, and executes nodes.
 
@@ -38,7 +38,7 @@ export abstract class Acnode {
 
 - `process()` receives values resolved for the current circuit run and returns output values for that run.
 - Defaults belong in the derived node's immutable configuration or inside its `process()` implementation.
-- `canConnectInput()` validates a proposed connection before the circuit stores it.
+- `canConnectInput()` validates proposed connection before circuit stores it.
 
 ### Acircuit
 
@@ -61,8 +61,8 @@ export class Acircuit {
 }
 ```
 
-- `connect()` replaces an existing wire on the destination input.
-- `topoSort()` uses Kahn's algorithm, caches topological order across runs, and throws when the graph contains a cycle.
+- `connect()` replaces existing wire on destination input.
+- `topoSort()` uses Kahn's algorithm, caches topological order across runs, and throws when graph contains cycle.
 - `run()` evaluates every node in dependency order using values local to that invocation.
 - `RunOptions.overrides` supplies values for unconnected input sockets.
 - Execution callbacks observe node entry, node exit, and resolved wire values without changing node state.

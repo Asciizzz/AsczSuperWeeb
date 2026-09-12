@@ -10,7 +10,7 @@ import {
     RenderPass,
     EndPass,
     type AwgpuCtx,
-} from "../../Atoolkit/awgpu/index.js";
+} from "../../_old/awgpu/index.js";
 
 import { Mesh, MeshCmp } from "../mesh.js";
 import { Texture } from "../texture.js";

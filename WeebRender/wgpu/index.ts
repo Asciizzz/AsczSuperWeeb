@@ -7,7 +7,7 @@ export {
     EndFrame,
     BeginFrame as FrameStart,
     EndFrame as FrameEnd,
-} from "../../Atoolkit/awgpu/index.js";
+} from "../../_old/awgpu/index.js";
 export {
     WgpuRenderer,
     SceneDrawCmp,

@@ -1,14 +1,14 @@
 {
-    "extends": "../tsconfig.base.json",
+    "extends": "../../Atoolkit/tsconfig.base.json",
     "compilerOptions": {
         "lib": ["ES2022"],
         "rootDir": ".",
         "outDir": "../.tsc-dist/aflow"
     },
     "references": [
-        { "path": "../adiag" },
+        { "path": "../../Atoolkit/adiag" },
         { "path": "../agraph" },
-        { "path": "../acmp" }
+        { "path": "../../Atoolkit/acmp" }
     ],
     "include": ["./**/*.ts"],
     "exclude": ["./dist"]

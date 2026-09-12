@@ -1,4 +1,4 @@
-import { Adiag, type AdiagResult } from "../adiag/index.js";
+import { Adiag, type AdiagResult } from "../../Atoolkit/adiag/index.js";
 declare function structuredClone<T>(value: T, options?: any): T;
 
 function _safeClone<T>(val: T): T {

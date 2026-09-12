@@ -36,8 +36,8 @@ run(from: string, { ctx: anything, diag: Adiag }?): { ctx: any, diag: Adiag }
 
 import { Agraph, Adag, Anode, Aedge } from "../agraph/index.js";
 import type { EdgeSortFn } from "../agraph/index.js";
-import { Adiag, type AdiagResult } from "../adiag/index.js";
-import { Acmp } from "../acmp/index.js";
+import { Adiag, type AdiagResult } from "../../Atoolkit/adiag/index.js";
+import { Acmp } from "../../Atoolkit/acmp/index.js";
 
 export { Agraph, Adag, Anode, Aedge, Adiag, Acmp };
 export type { AdiagResult };

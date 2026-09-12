@@ -12,8 +12,10 @@
   },
   "include": [
     "Atoolkit/**/*.ts",
+    "_old/**/*.ts",
     "WeebRender/**/*.ts",
     "prototypes/Akettle/**/*.ts",
+    "prototypes/AwgpuShadowDemo/**/*.ts",
     "prototypes/SuperSimple/**/*.ts",
     "prototypes/RttCube/**/*.ts",
     "hub/**/*.ts"

@@ -1,4 +1,4 @@
-import { Adiag } from "../adiag/index.js";
+import { Adiag } from "../../Atoolkit/adiag/index.js";
 
 // ==================== Types =====================
 
