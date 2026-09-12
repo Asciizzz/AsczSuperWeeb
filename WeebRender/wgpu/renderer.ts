@@ -1,4 +1,4 @@
-import { Acmp } from "../../Atoolkit/acmp/index.js";
+import { Acmp } from "../../_old/acmp/index.js";
 import { type Adiag } from "../../Atoolkit/adiag/index.js";
 import { ComponentSet } from "../../Atoolkit/aecs/index.js";
 import { WeebScene } from "../scene.js";

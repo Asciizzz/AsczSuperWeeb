@@ -8,7 +8,7 @@
     "references": [
         { "path": "../../Atoolkit/adiag" },
         { "path": "../agraph" },
-        { "path": "../../Atoolkit/acmp" }
+        { "path": "../acmp" }
     ],
     "include": ["./**/*.ts"],
     "exclude": ["./dist"]

@@ -1,4 +1,4 @@
-import type { Adiag } from "../adiag/index.js";
+import type { Adiag } from "../../Atoolkit/adiag/index.js";
 
 /**
  * Universal component primitive.

@@ -1,4 +1,4 @@
-import { Acmp } from "../../../Atoolkit/acmp/index.js";
+import { Acmp } from "../../acmp/index.js";
 import type { Adiag } from "../../../Atoolkit/adiag/index.js";
 import type { Awgl2Ctx } from "../ctx.js";
 

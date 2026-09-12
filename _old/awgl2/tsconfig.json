@@ -7,7 +7,7 @@
     },
     "references": [
         { "path": "../../Atoolkit/adiag" },
-        { "path": "../../Atoolkit/acmp" }
+        { "path": "../acmp" }
     ],
     "include": ["**/*.ts"],
     "exclude": ["dist"]

@@ -12,7 +12,6 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
 
 | Package | Role | Key Capabilities | Documentation |
 | :--- | :--- | :--- | :--- |
-| **[`acmp`](./Atoolkit/acmp/ReadMe.md)** | Execution Component | Atomic execution unit (`exec(ctx, diag): TRet`) operating on mutable contexts with zero control-flow overhead. | [acmp ReadMe](./Atoolkit/acmp/ReadMe.md) |
 | **[`aecs`](./Atoolkit/aecs/ReadMe.md)** | Entity Component System | Sparse-set ECS with contiguous dense typed storage, O(1) mutations, and direct set intersection joins (`join2`, `join3`). | [aecs ReadMe](./Atoolkit/aecs/ReadMe.md) |
 | **[`acircuit`](./Atoolkit/acircuit/ReadMe.md)** | Value Computation Circuit | Directed computation circuit with typed socket endpoints, 1-to-N fan-out, Kahn topological sorting, and dependency caching. | [acircuit ReadMe](./Atoolkit/acircuit/ReadMe.md) |
 | **[`awgpu`](./Atoolkit/awgpu/ReadMe.md)** | Hardware WebGPU Engine | Domain-agnostic GPU execution engine featuring multi-pass render targets, 4-tier frequency bind slots, automated vertex strides, and depth-only pipelines. | [awgpu ReadMe](./Atoolkit/awgpu/ReadMe.md) |
@@ -24,14 +23,13 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
 ## Repository Structure
 
 * `Atoolkit/`: Production toolkit modules
-  * `acmp/`: Atomic execution component primitive
   * `aecs/`: Sparse-set Entity Component System
   * `acircuit/`: Socket-based computation circuit
   * `alm/`: Allocation-free 3D linear algebra
   * `awgpu/`: Hardware WebGPU execution engine
   * `adiag/`: Diagnostic collector and causal trace bus
 * `WeebRender/`: Experimental graphics library built on toolkit primitives
-* `_old/`: Archived legacy modules preserved for reference (`aflow`, `agraph`, `awgl2`, legacy `awgpu`)
+* `_old/`: Archived legacy modules preserved for reference (`acmp`, `aflow`, `agraph`, `awgl2`, legacy `awgpu`)
 * `prototypes/`: Interactive testbeds and runnable demonstrations
   * `AwgpuShadowDemo/`: Multi-pass hardware shadow mapping with PCF comparison filtering
   * `Akettle/`: Asset storage and ECS inspection workbench

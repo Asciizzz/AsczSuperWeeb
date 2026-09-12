@@ -11,7 +11,6 @@ This toolkit acts as foundation for any libraries, projects, etc. to create comm
 
 | Package | Purpose | Docs |
 | :--- | :--- | :--- |
-| **[`acmp`](./acmp/ReadMe.md)** | Atomic execution component primitive (`exec(ctx, diag): void`) operating against mutable contexts | [ReadMe](./acmp/ReadMe.md) |
 | **[`aecs`](./aecs/ReadMe.md)** | Sparse-set Entity Component System with O(1) signature queries and direct traversal | [ReadMe](./aecs/ReadMe.md) |
 | **[`acircuit`](./acircuit/ReadMe.md)** | Socket-based computation circuit with typed endpoints, topological ordering, and order caching | [ReadMe](./acircuit/ReadMe.md) |
 | **[`awgpu`](./awgpu/ReadMe.md)** | Domain-agnostic WebGPU execution engine with multi-pass targets, 4-tier bind frequency slots, and command pipeline sequencing | [ReadMe](./awgpu/ReadMe.md) |
