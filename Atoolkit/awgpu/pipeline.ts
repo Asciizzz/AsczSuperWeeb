@@ -109,6 +109,15 @@ export class AwgpuRenderPipeline {
             label: `${label}_VSModule`,
             code: descriptor.vertex.code,
         });
+        vsModule.getCompilationInfo().then((info) => {
+            for (const msg of info.messages) {
+                if (msg.type === "error") {
+                    console.error(`[AwgpuRenderPipeline] Vertex shader error in ${label}_VSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                } else if (msg.type === "warning") {
+                    console.warn(`[AwgpuRenderPipeline] Vertex shader warning in ${label}_VSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                }
+            }
+        });
 
         // 2. Pipeline Layout: explicit bind group layouts, custom layout, or auto
         let pipelineLayout: GPUPipelineLayout | "auto" = descriptor.layout ?? "auto";
@@ -164,6 +173,18 @@ export class AwgpuRenderPipeline {
                       code: fsCode,
                   });
 
+            if (fsModule !== vsModule) {
+                fsModule.getCompilationInfo().then((info) => {
+                    for (const msg of info.messages) {
+                        if (msg.type === "error") {
+                            console.error(`[AwgpuRenderPipeline] Fragment shader error in ${label}_FSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                        } else if (msg.type === "warning") {
+                            console.warn(`[AwgpuRenderPipeline] Fragment shader warning in ${label}_FSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                        }
+                    }
+                });
+            }
+
             nativeDesc.fragment = {
                 module: fsModule,
                 entryPoint: descriptor.fragment.entryPoint ?? "fs_main",
@@ -206,6 +227,15 @@ export class AwgpuComputePipeline {
         const csModule = device.createShaderModule({
             label: `${label}_CSModule`,
             code: options.code,
+        });
+        csModule.getCompilationInfo().then((info) => {
+            for (const msg of info.messages) {
+                if (msg.type === "error") {
+                    console.error(`[AwgpuComputePipeline] Compute shader error in ${label}_CSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                } else if (msg.type === "warning") {
+                    console.warn(`[AwgpuComputePipeline] Compute shader warning in ${label}_CSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                }
+            }
         });
 
         let pipelineLayout: GPUPipelineLayout | "auto" = options.layout ?? "auto";
