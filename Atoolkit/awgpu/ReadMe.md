@@ -6,7 +6,7 @@ Domain-agnostic WebGPU execution engine managing hardware device presentation, r
 
 ## Architecture Overview
 
-Awgpu structures GPU workloads across seven core layers:
+Awgpu structures GPU workloads across seven layers:
 
 1. `AwgpuDevice`: Adapter negotiation, GPUDevice lifetime, queue submission, and canvas swapchain configuration.
 2. `AwgpuRenderTarget`: Color and depth attachment descriptors supporting screen swapchains, offscreen MRT, depth-only targets, automatic canvas resize synchronization, and cached pass descriptor generation.
@@ -18,79 +18,130 @@ Awgpu structures GPU workloads across seven core layers:
 
 ---
 
-## 1. Device Initialization
+## 1. Device Management
+
+`AwgpuDevice` manages adapter selection, logical device acquisition, command submission, and presentation swapchains.
 
 ```typescript
 import { AwgpuDevice } from "./device.js";
 
-// Canvas presentation
+// Canvas presentation initialization
 const device = await AwgpuDevice.create({
     canvas: "#renderCanvas",
     powerPreference: "high-performance",
+    alphaMode: "premultiplied",
 });
 
-// Headless device for compute or offscreen testing
-const headless = await AwgpuDevice.createHeadless();
+// Headless device initialization for compute or offscreen testing
+const headless = await AwgpuDevice.createHeadless({
+    powerPreference: "high-performance",
+});
 ```
+
+- `AwgpuDevice.create(options)`: Requests `GPUAdapter` matching `powerPreference` (defaults to `"high-performance"`), acquires `GPUDevice`, resolves target canvas from selector string or element reference, and configures swapchain format via `navigator.gpu.getPreferredCanvasFormat()`.
+- `AwgpuDevice.createHeadless(options)`: Initializes device with `canvas: null` for compute pipelines, test harnesses, or worker threads.
+- `createScreenTarget(options)`: Allocates `AwgpuRenderTarget` bound to canvas swapchain with matching dimensions and optional depth attachment.
+- `createCommandEncoder(label)`: Instantiates fresh `GPUCommandEncoder`.
+- `submit(commands)`: Accepts single instance or array of `GPUCommandBuffer` or `GPUCommandEncoder`. Automatically calls `finish()` on encoders before submitting to hardware queue.
+- `destroy()`: Unconfigures canvas presentation context and destroys underlying `GPUDevice`.
 
 ---
 
-## 2. Render Targets
+## 2. Textures, Samplers, and Render Targets
 
-`AwgpuRenderTarget` configures color attachments and depth-stencil targets. Descriptors are cached internally to eliminate allocation overhead during command recording:
+`AwgpuTexture` and `AwgpuSampler` wrap hardware resources. `AwgpuRenderTarget` coordinates color and depth attachments for pass recording.
 
 ```typescript
-import { AwgpuRenderTarget } from "./target.js";
+import { AwgpuTexture, AwgpuSampler, AwgpuRenderTarget } from "./target.js";
 
-// Canvas presentation target (automatically resizes depth buffer when canvas dimensions change)
-const screenTarget = AwgpuRenderTarget.createScreen(device, {
-    depthFormat: "depth24plus",
-    clearColor: { r: 0.1, g: 0.1, b: 0.15, a: 1.0 },
+// Textures
+const colorTex = AwgpuTexture.create2D(device.device, {
+    width: 1920,
+    height: 1080,
+    format: "rgba8unorm",
 });
 
-// Depth-only target for shadow maps
+const depthTex = AwgpuTexture.createDepth(device.device, {
+    width: 2048,
+    height: 2048,
+    format: "depth32float",
+});
+
+// Samplers
+const linearSampler = AwgpuSampler.createLinear(device.device);
+const shadowSampler = AwgpuSampler.createComparison(device.device, { compare: "less" });
+
+// Targets
+const screenTarget = AwgpuRenderTarget.createScreen(device, {
+    depthFormat: "depth24plus",
+    clearColor: { r: 0.05, g: 0.05, b: 0.08, a: 1.0 },
+});
+
 const shadowTarget = AwgpuRenderTarget.createDepthOnly(device.device, 2048, 2048, {
     depthFormat: "depth32float",
 });
 
-// Offscreen color + depth target for post-processing or RTT
 const offscreenTarget = AwgpuRenderTarget.createOffscreen(device.device, 1920, 1080, {
     colorFormat: "rgba8unorm",
     depthFormat: "depth24plus",
 });
 ```
 
+- `AwgpuTexture.create2D(device, options)`: Allocates 2D texture and companion view with default `TEXTURE_BINDING | RENDER_ATTACHMENT | COPY_DST` usage.
+- `AwgpuTexture.createDepth(device, options)`: Allocates depth or depth-stencil texture with `RENDER_ATTACHMENT | TEXTURE_BINDING` usage.
+- `AwgpuTexture.fromTexture(gpuTexture, options)`: Wraps pre-existing hardware texture without taking destruction ownership unless `gpuOwned: true` is specified.
+- `AwgpuSampler.createLinear(device, label)`: Bilinear/trilinear filtering sampler with repeat address mode.
+- `AwgpuSampler.createNearest(device, label)`: Point filtering sampler with clamp-to-edge address mode.
+- `AwgpuSampler.createComparison(device, options)`: Hardware comparison sampler configured for depth tests and shadow percentage-closer filtering.
+- `AwgpuRenderTarget.createScreen(gfx, options)`: Binds color attachment 0 to canvas swapchain backbuffer. Automatically updates dimensions and allocates depth texture when requested.
+- `AwgpuRenderTarget.createDepthOnly(device, width, height, options)`: Allocates pure depth destination omitting color attachments, intended for shadow map generation and depth prepasses.
+- `AwgpuRenderTarget.createOffscreen(device, width, height, options)`: Allocates offscreen color texture and depth attachment for render-to-texture and post-processing passes.
+- `resize(device, width, height)`: Reallocates internal color and depth textures when target dimensions change, marking cached pass descriptors dirty.
+- `buildPassDescriptor(options)`: Generates `GPURenderPassDescriptor`. Automatically checks canvas dimensions on screen targets, resizing attachments if canvas width/height changed. Caches descriptor structure to eliminate per-frame object allocation, updating only dynamic fields (swapchain views, clear colors, load operations).
+- `invalidateDescriptor()`: Forces cached descriptor rebuild on subsequent pass executions.
+
 ---
 
-## 3. Buffers and Memory Allocation
+## 3. Buffers and Memory Pooling
 
-`AwgpuBuffer` wraps GPUBuffer with alignment guarantees. `AwgpuBufferPool` recycles buffers across frames using best-fit matching:
+`AwgpuBuffer` manages aligned GPU storage. `AwgpuBufferPool` provides dynamic per-frame allocation with best-fit buffer recycling.
 
 ```typescript
 import { AwgpuBuffer, AwgpuBufferPool } from "./buffer.js";
 
-// Uniform buffer aligned to 16 bytes
+// Explicit buffers
 const uniformBuf = AwgpuBuffer.createUniform(device.device, new Float32Array(16));
+const vertexBuf  = AwgpuBuffer.createVertex(device.device, vertexFloatArray);
+const indexBuf   = AwgpuBuffer.createIndex(device.device, indexUint16Array);
+const storageBuf = AwgpuBuffer.createStorage(device.device, 1024, { readOnly: false });
 
-// Vertex buffer aligned to 4 bytes
-const vertexBuf = AwgpuBuffer.createVertex(device.device, vertexData);
+// Buffer updates
+uniformBuf.write(device.device, updatedFloatArray);
 
-// Index buffer
-const indexBuf = AwgpuBuffer.createIndex(device.device, indexData);
-
-// Dynamic per-frame uniform pool with best-fit reuse
+// Per-frame buffer pool
 const pool = new AwgpuBufferPool(GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
 const frameUniform = pool.acquire(device.device, 64);
+frameUniform.write(device.device, modelMatrixData);
 
-// At start of next frame:
+// Frame boundary reset
 pool.reset();
 ```
+
+- `AwgpuBuffer.createUniform(device, sizeOrData, label)`: Enforces 16-byte minimum sizing and 16-byte alignment required by WebGPU uniform buffer specifications.
+- `AwgpuBuffer.createVertex(device, dataOrSize, label)`: Allocates vertex buffer aligned to 4 bytes with `VERTEX | COPY_DST` usage.
+- `AwgpuBuffer.createIndex(device, dataOrSize, label)`: Allocates index buffer aligned to 4 bytes with `INDEX | COPY_DST` usage.
+- `AwgpuBuffer.createStorage(device, sizeOrData, options)`: Allocates storage buffer aligned to 4 bytes with `STORAGE | COPY_DST` usage.
+- `write(device, data, bufferOffset)`: Uploads typed array data into buffer memory via `queue.writeBuffer`.
+- `AwgpuBufferPool.acquire(device, requiredSize)`: Searches available idle buffers using best-fit matching for smallest capacity satisfying `requiredSize` (aligned to 16 bytes). Reuses existing buffers without driver destruction; allocates new buffer only when no available buffer fits.
+- `AwgpuBufferPool.release(buffer)`: Returns individual buffer back to available pool ahead of frame reset.
+- `AwgpuBufferPool.reset()`: Moves all active buffers from in-use pool back into available pool for subsequent frame recycling without deallocating memory.
+- `totalBuffers` / `inUseCount`: Inspects pool allocation counts for memory profiling.
 
 ---
 
 ## 4. Bind Group Layouts and Frequency Slots
 
-`AwgpuBindSlot` organizes bindings across four standard update frequencies:
+`AwgpuBindSlot` organizes bindings across four standard update frequencies. `AwgpuBindGroupLayoutBuilder` constructs layouts with dynamic offset support.
 
 ```typescript
 import {
@@ -99,47 +150,64 @@ import {
     AwgpuBindGroup,
 } from "./layout.js";
 
-// Pass Layout (Slot 0)
+// Pass Layout (Slot 0): Camera view-projection
 const passLayout = new AwgpuBindGroupLayoutBuilder()
-    .addUniform(0) // ViewProj matrix
+    .addUniform(0, GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT)
     .build(device.device, "PassLayout");
 
-// Instance Layout with dynamic offset (Slot 3)
+// Material Layout (Slot 2): Surface constants and textures
+const materialLayout = new AwgpuBindGroupLayoutBuilder()
+    .addUniform(0, GPUShaderStage.FRAGMENT)
+    .addTexture(1, GPUShaderStage.FRAGMENT)
+    .addSampler(2, GPUShaderStage.FRAGMENT)
+    .build(device.device, "MaterialLayout");
+
+// Instance Layout (Slot 3): Model transforms with dynamic uniform buffer offsets
 const instanceLayout = new AwgpuBindGroupLayoutBuilder()
     .addUniform(0, GPUShaderStage.VERTEX, { hasDynamicOffset: true })
     .build(device.device, "InstanceLayout");
 
-// Material Layout (Slot 2)
-const materialLayout = new AwgpuBindGroupLayoutBuilder()
-    .addUniform(0) // Material constants
-    .addTexture(1) // Base color texture
-    .addSampler(2) // Linear sampler
-    .build(device.device, "MaterialLayout");
-
-// Instantiate BindGroup
+// BindGroup instantiation
 const passBindGroup = AwgpuBindGroup.create(device.device, passLayout, [
     { binding: 0, resource: cameraBuffer },
 ], { slot: AwgpuBindSlot.Pass });
 ```
 
+- `AwgpuBindSlot`: Standardized binding frequency slots:
+  - `Pass = 0`: View-projection matrices, viewport size, global frame constants.
+  - `Phase = 1`: Environment maps, lighting clusters, phase-specific buffers.
+  - `Material = 2`: Diffuse/normal textures, surface properties, samplers.
+  - `Instance = 3`: Per-instance transforms, bone palettes, dynamic model data.
+- `AwgpuBindGroupLayoutBuilder.addUniform(binding, visibility, options)`: Appends uniform buffer entry. `options.hasDynamicOffset` enables WebGPU dynamic offset binding; `options.minBindingSize` enforces minimum buffer validation size.
+- `AwgpuBindGroupLayoutBuilder.addStorage(binding, visibility, options)`: Appends storage buffer entry (`read-only-storage` or `storage`). Supports `hasDynamicOffset`.
+- `AwgpuBindGroupLayoutBuilder.addTexture(binding, visibility, options)`: Appends texture entry (`float`, `unfilterable-float`, `sint`, `uint`, `depth`).
+- `AwgpuBindGroupLayoutBuilder.addSampler(binding, visibility, options)`: Appends sampler entry (`filtering`, `non-filtering`, or `comparison`).
+- `AwgpuBindGroup.create(device, layout, entries, options)`: Resolves toolkit resource wrappers (`AwgpuBuffer`, `AwgpuTexture`, `AwgpuSampler`) into native `GPUBindingResource` descriptors, tracks assigned slot index, and instantiates `GPUBindGroup`.
+
 ---
 
-## 5. Pipeline Creation
+## 5. Pipeline Creation and Diagnostics
 
-`AwgpuRenderPipeline` compiles shaders and sets primitive, depth, and multisample state. Diagnostic errors route through structured telemetry:
+`createVertexLayout` derives vertex strides and offsets automatically. `AwgpuRenderPipeline` and `AwgpuComputePipeline` compile shader modules with structured diagnostic reporting.
 
 ```typescript
-import { AwgpuRenderPipeline, createVertexLayout } from "./pipeline.js";
+import {
+    createVertexLayout,
+    AwgpuRenderPipeline,
+    AwgpuComputePipeline,
+} from "./pipeline.js";
 
+// Automated vertex layout derivation
 const vertexLayout = createVertexLayout([
-    { shaderLocation: 0, format: "float32x3" }, // Position
-    { shaderLocation: 1, format: "float32x3" }, // Normal
-    { shaderLocation: 2, format: "float32x2" }, // UV
-]);
+    { shaderLocation: 0, format: "float32x3" }, // Position: offset 0
+    { shaderLocation: 1, format: "float32x3" }, // Normal:   offset 12
+    { shaderLocation: 2, format: "float32x2" }, // UV:       offset 24
+]); // arrayStride = 32
 
+// Full render pipeline
 const pipeline = AwgpuRenderPipeline.create(device.device, {
-    label: "ForwardLightingPipeline",
-    bindGroupLayouts: [passLayout, phaseLayout, materialLayout, instanceLayout],
+    label: "ForwardPipeline",
+    bindGroupLayouts: [passLayout, null, materialLayout, instanceLayout],
     vertex: {
         code: shaderCode,
         entryPoint: "vs_main",
@@ -157,14 +225,11 @@ const pipeline = AwgpuRenderPipeline.create(device.device, {
     },
     diag: diagnosticCollector, // Optional diagnostic logger receiving structured compilation records
 });
-```
 
-Depth-only pipelines omit the fragment stage entirely:
-
-```typescript
-const depthPipeline = AwgpuRenderPipeline.create(device.device, {
-    label: "ShadowDepthPipeline",
-    bindGroupLayouts: [shadowPassLayout, null, null, instanceLayout],
+// Depth-only pipeline (omits fragment stage)
+const shadowPipeline = AwgpuRenderPipeline.create(device.device, {
+    label: "ShadowPipeline",
+    bindGroupLayouts: [passLayout, null, null, instanceLayout],
     vertex: {
         code: shadowShaderCode,
         buffers: [vertexLayout],
@@ -175,45 +240,59 @@ const depthPipeline = AwgpuRenderPipeline.create(device.device, {
         depthCompare: "less",
     },
 });
+
+// Compute pipeline
+const computePipeline = AwgpuComputePipeline.create(device.device, {
+    label: "ParticleComputePipeline",
+    code: computeShaderCode,
+    bindGroupLayouts: [computeBindGroupLayout],
+});
 ```
+
+- `createVertexLayout(attributes, stepMode)`: Computes cumulative byte offsets and aligns `arrayStride` to 4-byte boundaries automatically from format strings.
+- `AwgpuRenderPipeline.create(device, descriptor)`: Compiles vertex shader and optional fragment shader modules. Fills omitted intermediate bind group layout slots with empty layouts, preventing layout index misalignment.
+- Depth-only execution: Omitting `descriptor.fragment` instantiates a pure depth pipeline (for shadow mapping or occlusion prepasses) without fragment shader overhead.
+- Structured diagnostics: `descriptor.diag` accepts any logger implementing `err`, `warn`, or `info`. Shader compilation warnings and errors route into structured records containing stage name, line numbers, character positions, and error text. `descriptor.onShaderMessage` provides direct per-message callback hooks.
+- `AwgpuComputePipeline.create(device, options)`: Compiles compute shader module and creates `GPUComputePipeline` with matching diagnostic routing.
 
 ---
 
 ## 6. Pass Recording and Frame Sequencing
 
-`AwgpuPass` records draw commands with state filtering and dynamic uniform offsets:
+`AwgpuPass` records draw commands with state filtering and dynamic offsets. `AwgpuFrame` orchestrates multi-pass command buffer submission.
 
 ```typescript
-import { AwgpuPass, AwgpuFrame } from "./index.js";
+import { AwgpuPass, AwgpuFrame, AwgpuBindSlot } from "./index.js";
 
-// Pass 1: Depth Shadow Map
+// Shadow depth pass
 const shadowPass = new AwgpuPass("ShadowPass", shadowTarget);
 shadowPass.addDraw({
-    pipeline: depthPipeline,
+    pipeline: shadowPipeline,
     vertexBuffer: meshVbo,
     indexBuffer: meshIbo,
     indexCount: 36,
-    bindGroups: [shadowPassBindGroup, null, null, modelBindGroup],
+    bindGroups: [shadowPassBindGroup, null, null, instanceBindGroup],
+    dynamicOffsets: { [AwgpuBindSlot.Instance]: [0] },
 });
 
-// Pass 2: Main Forward Color using command pooling for zero allocations
+// Main color pass using pooled commands for zero heap allocations
 const mainPass = new AwgpuPass("MainPass", screenTarget);
 
 for (let i = 0; i < objectCount; i++) {
-    const draw = mainPass.acquireDraw(); // Reuses pooled command object
+    const draw = mainPass.acquireDraw(); // Recycles pre-allocated command struct
     draw.pipeline = pipeline;
     draw.vertexBuffer = meshVbo;
     draw.indexBuffer = meshIbo;
     draw.indexCount = 36;
-    draw.bindGroups = [passBindGroup, phaseBindGroup, materialBindGroup, sharedInstanceBindGroup];
+    draw.bindGroups = [passBindGroup, null, materialBindGroup, sharedDynamicBindGroup];
     draw.dynamicOffsets = { [AwgpuBindSlot.Instance]: [i * 256] };
 }
 
-// Or record imperative hardware commands directly:
-const customPass = new AwgpuPass("CustomPass", screenTarget);
-customPass.record((passEncoder) => {
-    passEncoder.setPipeline(pipeline.gpuPipeline);
-    passEncoder.setVertexBuffer(0, meshVbo.gpuBuffer);
+// Direct hardware recording bypass
+const postPass = new AwgpuPass("PostPass", screenTarget);
+postPass.record((passEncoder) => {
+    passEncoder.setPipeline(postPipeline.gpuPipeline);
+    passEncoder.setBindGroup(0, postBindGroup.gpuBindGroup);
     passEncoder.draw(3);
 });
 
@@ -221,5 +300,15 @@ customPass.record((passEncoder) => {
 const frame = new AwgpuFrame();
 frame.addPass(shadowPass);
 frame.addPass(mainPass);
+frame.addPass(postPass);
 frame.execute(device);
 ```
+
+- `AwgpuPass.addDraw(cmd)`: Enqueues draw command into pass list.
+- `AwgpuPass.acquireDraw()`: Returns recycled `AwgpuDrawCommand` from internal command pool, resetting mutable fields. Reused instances populate `drawCommands` without per-frame object allocation.
+- `AwgpuPass.record(recorder)`: Registers custom imperative callback receiving raw `GPURenderPassEncoder`, bypassing command list processing.
+- `AwgpuPass.clearDraws()`: Empties `drawCommands` and resets pool index to 0 for subsequent frame reuse.
+- `AwgpuPass.execute(encoder, customRecorder?)`: Opens pass using target's cached descriptor. Applies viewport/scissor. When executing queued draws, filters redundant GPU state changes (skips re-binding identical pipelines, vertex buffers, index buffers, and static bind groups). Dispatches dynamic uniform offsets whenever provided.
+- `AwgpuComputePass.acquireCompute()` / `record(recorder)`: Recycles compute command objects and supports direct compute pass dispatch.
+- `AwgpuFrame.addPass(pass)`: Sequences render and compute passes.
+- `AwgpuFrame.execute(deviceOrGfx, label)`: Allocates single `GPUCommandEncoder`, executes all passes sequentially, finishes command recording, and submits final `GPUCommandBuffer` to device queue.

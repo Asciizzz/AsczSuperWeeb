@@ -1,99 +1,138 @@
 # Adiag
 
-Structured diagnostic collector and causal error bus for Atoolkit.
+Structured diagnostic collector, telemetry bus, and causal error tracer. Replaces cross-boundary thrown exceptions with queryable records, bounded ring-buffer history, and pointer-based causal error chains.
 
 ---
 
-## Key Behaviors
+## Architecture Overview
 
-1. **Typed Records**: Objects with `type` ('ok', 'err', 'warn', 'info'), `code`, `raw`, `data`, and optional `ref` pointer.
-2. **Causal Reference Chaining (`ref`)**: High-level failures point directly to low-level causes. `Adiag.getCauseChain` walks pointer chains safely using visited sets to avoid circular references.
-3. **Bounded Log History**: Caps history at 1,000 entries via O(1) circular ring buffer, overwriting oldest items automatically.
-4. **Message Interpolation**: Compiles `$key$` and `$key.subkey$` placeholders from `data` via `Adiag.compileMsg`.
+Adiag structures diagnostics across three core primitives:
+
+1. `AdiagResult`: Diagnostic record with category type, machine-readable code, template text, payload data, and causal reference pointer.
+2. `Adiag`: Diagnostic bus backed by a fixed-capacity circular ring buffer.
+3. Causal chain tracer: Traversal functions generating root cause failure traces across subsystem boundaries.
 
 ---
 
-## Usage
+## 1. Diagnostic Records and Logging
 
-```ts
-import { Adiag } from "../adiag/index.js";
+`AdiagResult` captures structured diagnostics. `Adiag` logs records into a pre-allocated circular ring buffer in O(1) time without unbounded memory growth.
+
+```typescript
+import { Adiag, type AdiagResult } from "./index.js";
+
+const diag = new Adiag(1000);
+
+// Basic logging
+diag.ok({ code: "RENDER_INIT_OK" });
+
+// Warning with template parameters
+diag.warn({
+    code: "FALLBACK_FORMAT",
+    raw: "Target format '$format$' unsupported; using fallback",
+    data: { format: "depth32float" },
+});
+
+// Error with structured payload
+const fileErr = diag.err({
+    code: "FILE_NOT_FOUND",
+    raw: "Resource '$path$' could not be located",
+    data: { path: "models/mesh.bin" },
+});
+```
+
+- Storage layout: Pre-allocated `#buffer: (AdiagResult | null)[]` of length `maxHistory` (default 1000). `#head` tracks the circular insertion index and `#count` tracks total active records. Once `maxHistory` is reached, subsequent additions overwrite the oldest slots in O(1).
+- `ok(args)` / `err(args)` / `warn(args)` / `info(args)`: Appends record with corresponding category type (`"ok"`, `"err"`, `"warn"`, `"info"`), returns the created `AdiagResult` instance.
+- `results`: Getter returning chronological snapshot array ordered from oldest active record to newest.
+- `clear()`: Resets `#head` and `#count` to 0 and clears backing buffer slots.
+
+---
+
+## 2. Causal Error Reference Chaining
+
+High-level failures link directly to low-level root causes via the `ref` causal reference pointer.
+
+```typescript
+import { Adiag } from "./index.js";
 
 const diag = new Adiag();
 
-// 1. Log basic diagnostics
-diag.ok({ code: "PIPELINE_INIT_OK" });
-diag.warn({
-    code: "FALLBACK_FORMAT",
-    raw: "Using fallback texture format: $format$",
-    data: { format: "rgba8unorm" },
+// Root cause: low-level hardware or file failure
+const hardwareErr = diag.err({
+    code: "BUFFER_CREATION_FAILED",
+    raw: "Failed to allocate uniform buffer of size $size$ bytes",
+    data: { size: 1048576 },
 });
 
-// 2. Chain causal errors across subsystems
-const underlyingErr = diag.err({
-    code: "RESOURCE_MISSING",
-    raw: "Resource '$path$' not found",
-    data: { path: "assets/mesh.bin" },
+// High-level failure: points to underlying cause via ref
+const pipelineErr = diag.err({
+    code: "PIPELINE_INIT_FAILED",
+    raw: "Failed to initialize pipeline '$name$'",
+    data: { name: "ForwardRenderer" },
+    ref: hardwareErr, // Causal link
 });
 
-const taskErr = diag.err({
-    code: "STAGE_FAILED",
-    raw: "Could not initialize stage '$stage$'",
-    data: { stage: "geometry" },
-    ref: underlyingErr, // Points to root cause
-});
-
-// 3. Print causal trace
-console.log(Adiag.resultToChainMsg(taskErr));
+// Print formatted causal trace
+console.log(Adiag.resultToChainMsg(pipelineErr));
 // Output:
-// Could not initialize stage 'geometry'
-//   -> Caused by: Resource 'assets/mesh.bin' not found
-
-// 4. Query helpers
-console.log(diag.hasErrs());  // true
-console.log(diag.findErrs()); // [underlyingErr, taskErr]
+// Failed to initialize pipeline 'ForwardRenderer'
+//   -> Caused by: Failed to allocate uniform buffer of size 1048576 bytes
 ```
+
+- `AdiagResult.ref`: Optional pointer to another `AdiagResult` instance, linking downstream orchestrator failures directly to upstream cause.
+- `Adiag.getCauseChain(result)`: Traverses `ref` pointers into an ordered array starting at `result` down to the root cause. Uses a `Set<AdiagResult>` to detect and break circular references safely.
+- `Adiag.resultToChainMsg(result)`: Formats the entire causal chain into an indented, multi-line error trace:
+  ```
+  Top-level failure message
+    -> Root cause failure message
+  ```
 
 ---
 
-## API
+## 3. Telemetry Queries and Inspection
 
-```ts
-export interface AdiagResult {
-    type: string;
-    code: string;
-    raw: string;
-    data: unknown;
-    ref?: AdiagResult | null;
-}
+`Adiag` provides non-allocating backward-scanning inspection methods.
+
+```typescript
+import { Adiag } from "./index.js";
+
+const diag = new Adiag();
+
+// Fast status checks
+const isClean = diag.allOk();    // true if no errors, warnings, or info
+const hasErrors = diag.hasErrs(); // true if at least one error exists
+const latestErr = diag.lastErr(); // Retrieves newest error record without allocating arrays
+
+// Filtered array queries
+const allErrors = diag.findErrs();
+const allWarnings = diag.findWarns();
 ```
 
-- **`ref`**: Causal reference pointer linking high-level failure directly to low-level cause.
-- **`raw`**: Message template containing `$key$` and `$key.subkey$` placeholders interpolated from `data`.
+- `last()`: Returns the most recently logged record in O(1).
+- `lastErr()`: Scans backwards from current `#head` index to find the most recent record with `type === "err"`. Returns `null` if no errors exist, operating without allocating intermediate arrays.
+- `hasErrs()` / `hasWarns()` / `hasInfos()`: Scans backwards from `#head` to check for the presence of specific record types without allocating arrays.
+- `allOk()`: Scans backward through active records, returning `false` immediately if any record possesses a type other than `"ok"`.
+- `findErrs()` / `findWarns()` / `findInfos()` / `findOk()`: Filters `results` returning arrays of matching category records.
 
-```ts
-export class Adiag {
-    results: AdiagResult[];
-    state: Record<string, unknown>;
+---
 
-    ok(args?: AdiagAddArgs): AdiagResult;
-    err(args?: AdiagAddArgs): AdiagResult;
-    warn(args?: AdiagAddArgs): AdiagResult;
-    info(args?: AdiagAddArgs): AdiagResult;
+## 4. Message Template Compilation
 
-    last(): AdiagResult | null;
-    lastErr(): AdiagResult | null;
-    allOk(): boolean;
-    clear(): void;
+`compileMsg` compiles `$key$` and dot-nested `$key.subkey$` placeholders against structured `data` objects.
 
-    static getCauseChain(result: AdiagResult | null | undefined): AdiagResult[];
-    static compileMsg(raw?: string, data?: Record<string, unknown>): string;
-    static resultToMsg(result: AdiagResult): string;
-    static resultToChainMsg(result: AdiagResult): string;
-}
+```typescript
+import { Adiag } from "./index.js";
+
+const message = Adiag.compileMsg(
+    "Shader module '$shader.label$' failed at line $line$:$col$",
+    {
+        shader: { label: "MainVS" },
+        line: 42,
+        col: 10,
+    }
+);
+// "Shader module 'MainVS' failed at line 42:10"
 ```
 
-- **`results`**: Log history capped at 1000 entries in chronological order.
-- **`lastErr()`**: Scans backward from newest entries for most recent error record.
-- **`getCauseChain(result)`**: Traverses `ref` pointers into array ordered from high-level failure to root cause, using visited set to prevent cycles.
-- **`compileMsg(raw, data)`**: Interpolates `$key$` and nested `$key.subkey$` placeholders against `data` values.
-- **`resultToChainMsg(result)`**: Formats complete causal chain into indented multi-line diagnostic trace.
+- `Adiag.compileMsg(raw, data)`: Evaluates string templates by matching token patterns `/\$([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\$/g`. Traverses dot-nested property paths on `data`. Automatically extracts `Error.message`, handles primitives, and falls back to JSON serialization for objects.
+- `Adiag.resultToMsg(result)`: Convenience method compiling `result.raw` against `result.data`.
