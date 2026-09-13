@@ -233,6 +233,8 @@ export class AwgpuRenderTarget {
 
     private depthFormat?: GPUTextureFormat;
     private colorFormat?: GPUTextureFormat;
+    private _cachedDescriptor?: GPURenderPassDescriptor;
+    private _dirtyDescriptor = true;
 
     constructor(
         label: string,
@@ -450,54 +452,114 @@ export class AwgpuRenderTarget {
                 }
             }
         }
+        this._dirtyDescriptor = true;
+    }
+
+
+    /**
+     * Marks cached GPURenderPassDescriptor dirty, forcing rebuild on next pass.
+     */
+    invalidateDescriptor(): void {
+        this._dirtyDescriptor = true;
     }
 
     /**
      * Builds GPURenderPassDescriptor for command recording in active frame.
+     * Caches descriptor structure to eliminate per-frame object allocation.
+     * Supports optional per-pass loadOp and clear overrides for RTT chaining.
      */
-    buildPassDescriptor(): GPURenderPassDescriptor {
-        const descriptor: GPURenderPassDescriptor = {
-            label: `${this.label}_PassDescriptor`,
-            colorAttachments: [],
-        };
-
-        if (this.isScreen) {
-            const canvasView = this.gfx!.canvasContext!.getCurrentTexture().createView();
-            const ca = this.colorAttachments[0];
-            (descriptor.colorAttachments as GPURenderPassColorAttachment[]).push({
-                view: canvasView,
-                clearValue: ca?.clearColor ?? { r: 0, g: 0, b: 0, a: 1 },
-                loadOp: ca?.loadOp ?? "clear",
-                storeOp: ca?.storeOp ?? "store",
-            });
-        } else {
-            for (const ca of this.colorAttachments) {
-                if (ca.texture) {
-                    const entry: GPURenderPassColorAttachment = {
-                        view: ca.texture.gpuView,
-                        clearValue: ca.clearColor ?? { r: 0, g: 0, b: 0, a: 1 },
-                        loadOp: ca.loadOp ?? "clear",
-                        storeOp: ca.storeOp ?? "store",
-                    };
-                    if (ca.resolveTarget) {
-                        entry.resolveTarget = ca.resolveTarget.gpuView;
-                    }
-                    (descriptor.colorAttachments as GPURenderPassColorAttachment[]).push(entry);
-                }
+    buildPassDescriptor(options?: {
+        loadOp?: GPULoadOp;
+        depthLoadOp?: GPULoadOp;
+        clearColor?: { r: number; g: number; b: number; a: number };
+        depthClearValue?: number;
+    }): GPURenderPassDescriptor {
+        // Automatically synchronize screen target dimensions when canvas resizes
+        if (this.isScreen && this.gfx?.canvas) {
+            const cw = Math.max(1, this.gfx.canvas.width);
+            const ch = Math.max(1, this.gfx.canvas.height);
+            if (cw !== this.width || ch !== this.height) {
+                this.resize(this.gfx.device, cw, ch);
             }
         }
 
-        if (this.depthAttachment) {
-            descriptor.depthStencilAttachment = {
-                view: this.depthAttachment.texture.gpuView,
-                depthClearValue: this.depthAttachment.depthClearValue ?? 1.0,
-                depthLoadOp: this.depthAttachment.depthLoadOp ?? "clear",
-                depthStoreOp: this.depthAttachment.depthStoreOp ?? "store",
+        if (this._dirtyDescriptor || !this._cachedDescriptor) {
+            const colorAttachments: GPURenderPassColorAttachment[] = [];
+
+            if (this.isScreen) {
+                const ca = this.colorAttachments[0];
+                colorAttachments.push({
+                    view: null as any,
+                    clearValue: ca?.clearColor ?? { r: 0, g: 0, b: 0, a: 1 },
+                    loadOp: ca?.loadOp ?? "clear",
+                    storeOp: ca?.storeOp ?? "store",
+                });
+            } else {
+                for (const ca of this.colorAttachments) {
+                    if (ca.texture) {
+                        const entry: GPURenderPassColorAttachment = {
+                            view: ca.texture.gpuView,
+                            clearValue: ca.clearColor ?? { r: 0, g: 0, b: 0, a: 1 },
+                            loadOp: ca.loadOp ?? "clear",
+                            storeOp: ca.storeOp ?? "store",
+                        };
+                        if (ca.resolveTarget) {
+                            entry.resolveTarget = ca.resolveTarget.gpuView;
+                        }
+                        colorAttachments.push(entry);
+                    }
+                }
+            }
+
+            let depthStencilAttachment: GPURenderPassDepthStencilAttachment | undefined;
+            if (this.depthAttachment) {
+                depthStencilAttachment = {
+                    view: this.depthAttachment.texture.gpuView,
+                    depthClearValue: this.depthAttachment.depthClearValue ?? 1.0,
+                    depthLoadOp: this.depthAttachment.depthLoadOp ?? "clear",
+                    depthStoreOp: this.depthAttachment.depthStoreOp ?? "store",
+                };
+            }
+
+            this._cachedDescriptor = {
+                label: `${this.label}_PassDescriptor`,
+                colorAttachments,
+                depthStencilAttachment,
             };
+            this._dirtyDescriptor = false;
         }
 
-        return descriptor;
+        const desc = this._cachedDescriptor;
+        const overrideLoadOp = options?.loadOp;
+        const overrideClearColor = options?.clearColor;
+
+        const cas = desc.colorAttachments as GPURenderPassColorAttachment[];
+        if (this.isScreen) {
+            const canvasView = this.gfx!.canvasContext!.getCurrentTexture().createView();
+            const ca = cas[0];
+            const def = this.colorAttachments[0];
+            ca.view = canvasView;
+            ca.clearValue = overrideClearColor ?? def?.clearColor ?? { r: 0, g: 0, b: 0, a: 1 };
+            ca.loadOp = overrideLoadOp ?? def?.loadOp ?? "clear";
+        } else {
+
+            for (let i = 0; i < cas.length; i++) {
+                const def = this.colorAttachments[i];
+                if (overrideClearColor) cas[i].clearValue = overrideClearColor;
+                else if (def?.clearColor) cas[i].clearValue = def.clearColor;
+                if (overrideLoadOp) cas[i].loadOp = overrideLoadOp;
+                else if (def?.loadOp) cas[i].loadOp = def.loadOp;
+            }
+        }
+
+        if (desc.depthStencilAttachment && this.depthAttachment) {
+            desc.depthStencilAttachment.depthLoadOp = options?.depthLoadOp ?? this.depthAttachment.depthLoadOp ?? "clear";
+            desc.depthStencilAttachment.depthClearValue = options?.depthClearValue ?? this.depthAttachment.depthClearValue ?? 1.0;
+        }
+
+        return desc;
     }
+
 
     destroy(): void {
         if (this.depthAttachment) {

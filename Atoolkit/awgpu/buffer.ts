@@ -164,11 +164,11 @@ export class AwgpuBuffer {
 }
 
 /**
- * Reusable GPU buffer pool for dynamic per-frame allocation.
+ * Reusable GPU buffer pool for dynamic per-frame allocation without destruction thrashing.
  */
 export class AwgpuBufferPool {
-    private buffers: AwgpuBuffer[] = [];
-    private currentIndex = 0;
+    private _available: AwgpuBuffer[] = [];
+    private _inUse: AwgpuBuffer[] = [];
     readonly usage: GPUBufferUsageFlags;
     readonly label: string;
 
@@ -177,42 +177,91 @@ export class AwgpuBufferPool {
         this.label = label;
     }
 
-    /**
-     * Resets allocation index at start of frame.
-     */
-    reset(): void {
-        this.currentIndex = 0;
+    /** Total number of allocated buffers currently managed by pool. */
+    get totalBuffers(): number {
+        return this._available.length + this._inUse.length;
+    }
+
+    /** Number of buffers currently acquired and active in frame. */
+    get inUseCount(): number {
+        return this._inUse.length;
     }
 
     /**
-     * Acquires or allocates buffer with at least requested size.
+     * Resets active allocations at start of frame, returning all buffers to available pool.
+     */
+    reset(): void {
+        const inUse = this._inUse;
+        const available = this._available;
+        for (let i = 0; i < inUse.length; i++) {
+            available.push(inUse[i]);
+        }
+        inUse.length = 0;
+    }
+
+    /**
+     * Acquires buffer with at least requested byte size using best-fit matching from available pool.
      */
     acquire(device: GPUDevice, requiredSize: number): AwgpuBuffer {
-        const idx = this.currentIndex++;
         const alignedSize = Math.max(16, Math.ceil(requiredSize / 16) * 16);
 
-        if (this.buffers[idx]) {
-            if (this.buffers[idx].size >= alignedSize) {
-                return this.buffers[idx];
+        let bestIndex = -1;
+        let bestDiff = Number.POSITIVE_INFINITY;
+
+        // Best-fit search among available buffers
+        for (let i = 0; i < this._available.length; i++) {
+            const buf = this._available[i];
+            if (buf.size >= alignedSize) {
+                const diff = buf.size - alignedSize;
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                    bestIndex = i;
+                    if (diff === 0) break;
+                }
             }
-            // Existing buffer is too small: destroy and reallocate
-            this.buffers[idx].destroy();
         }
 
+        if (bestIndex >= 0) {
+            const lastIdx = this._available.length - 1;
+            const buf = this._available[bestIndex];
+            this._available[bestIndex] = this._available[lastIdx];
+            this._available.pop();
+            this._inUse.push(buf);
+            return buf;
+        }
+
+        const id = this.totalBuffers;
         const newBuf = AwgpuBuffer.create(device, {
             size: alignedSize,
             usage: this.usage,
-            label: `${this.label}_${idx}`,
+            label: `${this.label}_${id}`,
         });
-        this.buffers[idx] = newBuf;
+        this._inUse.push(newBuf);
         return newBuf;
     }
 
+    /**
+     * Releases an individual buffer back to available pool ahead of frame reset.
+     */
+    release(buffer: AwgpuBuffer): boolean {
+        const idx = this._inUse.indexOf(buffer);
+        if (idx === -1) return false;
+        const lastIdx = this._inUse.length - 1;
+        this._inUse[idx] = this._inUse[lastIdx];
+        this._inUse.pop();
+        this._available.push(buffer);
+        return true;
+    }
+
     destroy(): void {
-        for (const b of this.buffers) {
+        for (const b of this._available) {
             b.destroy();
         }
-        this.buffers.length = 0;
-        this.currentIndex = 0;
+        for (const b of this._inUse) {
+            b.destroy();
+        }
+        this._available.length = 0;
+        this._inUse.length = 0;
     }
 }
+

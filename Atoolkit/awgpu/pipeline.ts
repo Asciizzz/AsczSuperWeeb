@@ -65,6 +65,76 @@ export function createVertexLayout(
     };
 }
 
+export interface AwgpuShaderMessage {
+    type: "error" | "warning" | "info";
+    stage: "vertex" | "fragment" | "compute";
+    message: string;
+    lineNum: number;
+    linePos: number;
+    offset: number;
+    length: number;
+}
+
+export interface AwgpuDiagnosticLogger {
+    err?(args: { code?: string; raw?: string; data?: unknown }): unknown;
+    warn?(args: { code?: string; raw?: string; data?: unknown }): unknown;
+    info?(args: { code?: string; raw?: string; data?: unknown }): unknown;
+}
+
+function reportShaderMessages(
+    module: GPUShaderModule,
+    stage: "vertex" | "fragment" | "compute",
+    label: string,
+    onMessage?: (msg: AwgpuShaderMessage) => void,
+    diag?: AwgpuDiagnosticLogger
+): void {
+    module.getCompilationInfo().then((info) => {
+        for (const msg of info.messages) {
+            const shaderMsg: AwgpuShaderMessage = {
+                type: msg.type as "error" | "warning" | "info",
+                stage,
+                message: msg.message,
+                lineNum: msg.lineNum,
+                linePos: msg.linePos,
+                offset: msg.offset,
+                length: msg.length,
+            };
+
+            onMessage?.(shaderMsg);
+
+            if (msg.type === "error") {
+                if (diag?.err) {
+                    diag.err({
+                        code: "SHADER_COMPILE_ERROR",
+                        raw: "[$stage$] Shader compilation error in $label$ line $lineNum$:$linePos$: $message$",
+                        data: { stage, label, lineNum: msg.lineNum, linePos: msg.linePos, message: msg.message },
+                    });
+                } else if (!onMessage) {
+                    console.error(`[AwgpuPipeline] ${stage} shader error in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                }
+            } else if (msg.type === "warning") {
+                if (diag?.warn) {
+                    diag.warn({
+                        code: "SHADER_COMPILE_WARNING",
+                        raw: "[$stage$] Shader compilation warning in $label$ line $lineNum$:$linePos$: $message$",
+                        data: { stage, label, lineNum: msg.lineNum, linePos: msg.linePos, message: msg.message },
+                    });
+                } else if (!onMessage) {
+                    console.warn(`[AwgpuPipeline] ${stage} shader warning in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                }
+            } else if (msg.type === "info") {
+                if (diag?.info) {
+                    diag.info({
+                        code: "SHADER_COMPILE_INFO",
+                        raw: "[$stage$] Shader compilation info in $label$ line $lineNum$:$linePos$: $message$",
+                        data: { stage, label, lineNum: msg.lineNum, linePos: msg.linePos, message: msg.message },
+                    });
+                }
+            }
+        }
+    });
+}
+
 export interface AwgpuRenderPipelineDescriptor {
     label?: string;
     layout?: GPUPipelineLayout | "auto";
@@ -82,6 +152,8 @@ export interface AwgpuRenderPipelineDescriptor {
     depthStencil?: GPUDepthStencilState;
     primitive?: GPUPrimitiveState;
     multisample?: GPUMultisampleState;
+    onShaderMessage?: (msg: AwgpuShaderMessage) => void;
+    diag?: AwgpuDiagnosticLogger;
 }
 
 /**
@@ -109,15 +181,8 @@ export class AwgpuRenderPipeline {
             label: `${label}_VSModule`,
             code: descriptor.vertex.code,
         });
-        vsModule.getCompilationInfo().then((info) => {
-            for (const msg of info.messages) {
-                if (msg.type === "error") {
-                    console.error(`[AwgpuRenderPipeline] Vertex shader error in ${label}_VSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                } else if (msg.type === "warning") {
-                    console.warn(`[AwgpuRenderPipeline] Vertex shader warning in ${label}_VSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                }
-            }
-        });
+        reportShaderMessages(vsModule, "vertex", `${label}_VSModule`, descriptor.onShaderMessage, descriptor.diag);
+
 
         // 2. Pipeline Layout: explicit bind group layouts, custom layout, or auto
         let pipelineLayout: GPUPipelineLayout | "auto" = descriptor.layout ?? "auto";
@@ -174,15 +239,7 @@ export class AwgpuRenderPipeline {
                   });
 
             if (fsModule !== vsModule) {
-                fsModule.getCompilationInfo().then((info) => {
-                    for (const msg of info.messages) {
-                        if (msg.type === "error") {
-                            console.error(`[AwgpuRenderPipeline] Fragment shader error in ${label}_FSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                        } else if (msg.type === "warning") {
-                            console.warn(`[AwgpuRenderPipeline] Fragment shader warning in ${label}_FSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                        }
-                    }
-                });
+                reportShaderMessages(fsModule, "fragment", `${label}_FSModule`, descriptor.onShaderMessage, descriptor.diag);
             }
 
             nativeDesc.fragment = {
@@ -220,6 +277,8 @@ export class AwgpuComputePipeline {
             layout?: GPUPipelineLayout | "auto";
             bindGroupLayouts?: GPUBindGroupLayout[];
             label?: string;
+            onShaderMessage?: (msg: AwgpuShaderMessage) => void;
+            diag?: AwgpuDiagnosticLogger;
         }
     ): AwgpuComputePipeline {
         const label = options.label ?? "AwgpuComputePipeline";
@@ -228,15 +287,8 @@ export class AwgpuComputePipeline {
             label: `${label}_CSModule`,
             code: options.code,
         });
-        csModule.getCompilationInfo().then((info) => {
-            for (const msg of info.messages) {
-                if (msg.type === "error") {
-                    console.error(`[AwgpuComputePipeline] Compute shader error in ${label}_CSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                } else if (msg.type === "warning") {
-                    console.warn(`[AwgpuComputePipeline] Compute shader warning in ${label}_CSModule line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
-                }
-            }
-        });
+        reportShaderMessages(csModule, "compute", `${label}_CSModule`, options.onShaderMessage, options.diag);
+
 
         let pipelineLayout: GPUPipelineLayout | "auto" = options.layout ?? "auto";
         if (options.bindGroupLayouts && options.bindGroupLayouts.length > 0) {

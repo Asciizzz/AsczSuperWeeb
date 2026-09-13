@@ -52,6 +52,8 @@ export {
     AwgpuComputePipeline as ComputePipeline,
     type AwgpuVertexAttributeDesc,
     type AwgpuRenderPipelineDescriptor,
+    type AwgpuShaderMessage,
+    type AwgpuDiagnosticLogger,
 } from "./pipeline.js";
 
 // 6. Passes & Command Batches
@@ -62,6 +64,7 @@ export {
     AwgpuComputePass as ComputePass,
     type AwgpuDrawCommand,
     type AwgpuComputeCommand,
+    type AwgpuDynamicOffsets,
 } from "./pass.js";
 
 // 7. Frame Orchestration

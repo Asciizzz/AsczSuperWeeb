@@ -19,12 +19,17 @@ export class AwgpuBindGroupLayoutBuilder {
 
     addUniform(
         binding: number,
-        visibility: GPUShaderStageFlags = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT
+        visibility: GPUShaderStageFlags = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        options: { hasDynamicOffset?: boolean; minBindingSize?: number } = {}
     ): this {
         this.entries.push({
             binding,
             visibility,
-            buffer: { type: "uniform" },
+            buffer: {
+                type: "uniform",
+                hasDynamicOffset: options.hasDynamicOffset ?? false,
+                minBindingSize: options.minBindingSize,
+            },
         });
         return this;
     }
@@ -32,16 +37,21 @@ export class AwgpuBindGroupLayoutBuilder {
     addStorage(
         binding: number,
         visibility: GPUShaderStageFlags = GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-        options: { readOnly?: boolean } = {}
+        options: { readOnly?: boolean; hasDynamicOffset?: boolean; minBindingSize?: number } = {}
     ): this {
         const type: GPUBufferBindingType = (options.readOnly ?? true) ? "read-only-storage" : "storage";
         this.entries.push({
             binding,
             visibility,
-            buffer: { type },
+            buffer: {
+                type,
+                hasDynamicOffset: options.hasDynamicOffset ?? false,
+                minBindingSize: options.minBindingSize,
+            },
         });
         return this;
     }
+
 
     addTexture(
         binding: number,

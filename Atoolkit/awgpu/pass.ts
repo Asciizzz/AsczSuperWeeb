@@ -3,6 +3,11 @@ import type { AwgpuRenderPipeline, AwgpuComputePipeline } from "./pipeline.js";
 import type { AwgpuBindGroup } from "./layout.js";
 import type { AwgpuBuffer } from "./buffer.js";
 
+export type AwgpuDynamicOffsets =
+    | Iterable<number>
+    | (Iterable<number> | undefined)[]
+    | Record<number, Iterable<number>>;
+
 export interface AwgpuDrawCommand {
     pipeline: AwgpuRenderPipeline;
     vertexBuffer?: GPUBuffer | AwgpuBuffer | (GPUBuffer | AwgpuBuffer)[];
@@ -15,6 +20,7 @@ export interface AwgpuDrawCommand {
     instanceCount?: number;
     firstInstance?: number;
     bindGroups?: (GPUBindGroup | AwgpuBindGroup | null | undefined)[];
+    dynamicOffsets?: AwgpuDynamicOffsets;
 }
 
 export interface AwgpuComputeCommand {
@@ -23,6 +29,7 @@ export interface AwgpuComputeCommand {
     workgroupsY?: number;
     workgroupsZ?: number;
     bindGroups?: (GPUBindGroup | AwgpuBindGroup | null | undefined)[];
+    dynamicOffsets?: AwgpuDynamicOffsets;
 }
 
 function resolveGpuBuffer(buf: GPUBuffer | AwgpuBuffer): GPUBuffer {
@@ -34,6 +41,28 @@ function resolveGpuBindGroup(bg: GPUBindGroup | AwgpuBindGroup | null | undefine
     return "gpuBindGroup" in bg ? bg.gpuBindGroup : bg;
 }
 
+function resolveDynamicOffsets(
+    offsets: AwgpuDynamicOffsets | undefined,
+    slot: number
+): Iterable<number> | undefined {
+    if (!offsets) return undefined;
+
+    if (Array.isArray(offsets)) {
+        if (offsets.length > 0 && (Array.isArray(offsets[0]) || ArrayBuffer.isView(offsets[0]))) {
+            return (offsets as (Iterable<number> | undefined)[])[slot];
+        }
+        return offsets as unknown as Iterable<number>;
+    }
+
+    if (typeof offsets === "object" && !(Symbol.iterator in offsets)) {
+        return (offsets as Record<number, Iterable<number>>)[slot];
+    }
+
+    return offsets as Iterable<number>;
+}
+
+
+
 /**
  * Encapsulates self-contained WebGPU render pass recording draw commands into target.
  */
@@ -43,6 +72,10 @@ export class AwgpuPass {
     viewport?: { x: number; y: number; width: number; height: number; minDepth?: number; maxDepth?: number };
     scissor?: { x: number; y: number; width: number; height: number };
     drawCommands: AwgpuDrawCommand[] = [];
+
+    private _drawPool: AwgpuDrawCommand[] = [];
+    private _poolIndex = 0;
+    private _customRecorder?: (pass: GPURenderPassEncoder) => void;
 
     constructor(name: string, target: AwgpuRenderTarget) {
         this.name = name;
@@ -54,14 +87,53 @@ export class AwgpuPass {
         return this;
     }
 
+    /**
+     * Acquires a pooled, reusable draw command to avoid per-frame heap allocations.
+     * Mutate returned command directly. Reused commands automatically append to drawCommands.
+     */
+    acquireDraw(): AwgpuDrawCommand {
+        let cmd: AwgpuDrawCommand;
+        if (this._poolIndex < this._drawPool.length) {
+            cmd = this._drawPool[this._poolIndex++];
+            cmd.vertexBuffer = undefined;
+            cmd.indexBuffer = undefined;
+            cmd.indexFormat = undefined;
+            cmd.indexCount = undefined;
+            cmd.vertexCount = undefined;
+            cmd.indexStart = undefined;
+            cmd.vertexStart = undefined;
+            cmd.instanceCount = undefined;
+            cmd.firstInstance = undefined;
+            cmd.bindGroups = undefined;
+            cmd.dynamicOffsets = undefined;
+        } else {
+            cmd = { pipeline: null as any };
+            this._drawPool.push(cmd);
+            this._poolIndex++;
+        }
+        this.drawCommands.push(cmd);
+        return cmd;
+    }
+
+    /**
+     * Sets custom recording callback for direct hardware pass execution, bypassing drawCommands list.
+     */
+    record(recorder: (pass: GPURenderPassEncoder) => void): this {
+        this._customRecorder = recorder;
+        return this;
+    }
+
     clearDraws(): void {
         this.drawCommands.length = 0;
+        this._poolIndex = 0;
+        this._customRecorder = undefined;
     }
 
     /**
      * Records render pass into active command encoder with redundant state filtering.
+     * Accepts optional custom recording callback overriding queued draw commands.
      */
-    execute(encoder: GPUCommandEncoder): void {
+    execute(encoder: GPUCommandEncoder, customRecorder?: (pass: GPURenderPassEncoder) => void): void {
         const passDesc = this.target.buildPassDescriptor();
         passDesc.label = `${this.name}_Encoder`;
         const pass = encoder.beginRenderPass(passDesc);
@@ -86,6 +158,13 @@ export class AwgpuPass {
             );
         }
 
+        const recorder = customRecorder ?? this._customRecorder;
+        if (recorder) {
+            recorder(pass);
+            pass.end();
+            return;
+        }
+
         // Redundant state filtering cache
         let activePipeline: GPURenderPipeline | null = null;
         let activeIbo: GPUBuffer | null = null;
@@ -105,9 +184,15 @@ export class AwgpuPass {
             if (cmd.bindGroups) {
                 for (let slot = 0; slot < cmd.bindGroups.length; slot++) {
                     const bg = resolveGpuBindGroup(cmd.bindGroups[slot]);
-                    if (bg && activeBindGroups[slot] !== bg) {
-                        pass.setBindGroup(slot, bg);
-                        activeBindGroups[slot] = bg;
+                    if (bg) {
+                        const offsets = resolveDynamicOffsets(cmd.dynamicOffsets, slot);
+                        if (offsets !== undefined) {
+                            pass.setBindGroup(slot, bg, offsets);
+                            activeBindGroups[slot] = bg;
+                        } else if (activeBindGroups[slot] !== bg) {
+                            pass.setBindGroup(slot, bg);
+                            activeBindGroups[slot] = bg;
+                        }
                     }
                 }
             }
@@ -163,6 +248,10 @@ export class AwgpuComputePass {
     readonly name: string;
     commands: AwgpuComputeCommand[] = [];
 
+    private _computePool: AwgpuComputeCommand[] = [];
+    private _poolIndex = 0;
+    private _customRecorder?: (pass: GPUComputePassEncoder) => void;
+
     constructor(name: string) {
         this.name = name;
     }
@@ -172,12 +261,59 @@ export class AwgpuComputePass {
         return this;
     }
 
-    clear(): void {
-        this.commands.length = 0;
+    /**
+     * Acquires a pooled, reusable compute command to avoid per-frame heap allocations.
+     * Mutate returned command directly. Reused commands automatically append to commands list.
+     */
+    acquireCompute(): AwgpuComputeCommand {
+        let cmd: AwgpuComputeCommand;
+        if (this._poolIndex < this._computePool.length) {
+            cmd = this._computePool[this._poolIndex++];
+            cmd.workgroupsX = 1;
+            cmd.workgroupsY = undefined;
+            cmd.workgroupsZ = undefined;
+            cmd.bindGroups = undefined;
+            cmd.dynamicOffsets = undefined;
+        } else {
+            cmd = {
+                pipeline: null as any,
+                workgroupsX: 1,
+            };
+            this._computePool.push(cmd);
+            this._poolIndex++;
+        }
+        this.commands.push(cmd);
+        return cmd;
     }
 
-    execute(encoder: GPUCommandEncoder): void {
+    /**
+     * Sets custom recording callback for direct hardware compute pass execution, bypassing commands list.
+     */
+    record(recorder: (pass: GPUComputePassEncoder) => void): this {
+        this._customRecorder = recorder;
+        return this;
+    }
+
+    clear(): void {
+        this.commands.length = 0;
+        this._poolIndex = 0;
+        this._customRecorder = undefined;
+    }
+
+    /**
+     * Records compute pass into active command encoder with redundant state filtering.
+     * Accepts optional custom recording callback overriding queued compute commands.
+     */
+    execute(encoder: GPUCommandEncoder, customRecorder?: (pass: GPUComputePassEncoder) => void): void {
         const pass = encoder.beginComputePass({ label: `${this.name}_Encoder` });
+
+        const recorder = customRecorder ?? this._customRecorder;
+        if (recorder) {
+            recorder(pass);
+            pass.end();
+            return;
+        }
+
         let activePipeline: GPUComputePipeline | null = null;
         const activeBindGroups: (GPUBindGroup | null)[] = [null, null, null, null];
 
@@ -190,9 +326,15 @@ export class AwgpuComputePass {
             if (cmd.bindGroups) {
                 for (let slot = 0; slot < cmd.bindGroups.length; slot++) {
                     const bg = resolveGpuBindGroup(cmd.bindGroups[slot]);
-                    if (bg && activeBindGroups[slot] !== bg) {
-                        pass.setBindGroup(slot, bg);
-                        activeBindGroups[slot] = bg;
+                    if (bg) {
+                        const offsets = resolveDynamicOffsets(cmd.dynamicOffsets, slot);
+                        if (offsets !== undefined) {
+                            pass.setBindGroup(slot, bg, offsets);
+                            activeBindGroups[slot] = bg;
+                        } else if (activeBindGroups[slot] !== bg) {
+                            pass.setBindGroup(slot, bg);
+                            activeBindGroups[slot] = bg;
+                        }
                     }
                 }
             }

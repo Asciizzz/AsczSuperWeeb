@@ -28,7 +28,6 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
   * `alm/`: Allocation-free 3D linear algebra
   * `awgpu/`: Hardware WebGPU execution engine
   * `adiag/`: Diagnostic collector and causal trace bus
-* `WeebRender/`: Experimental graphics library built on toolkit primitives
 * `_old/`: Archived legacy modules preserved for reference (`acmp`, `aflow`, `agraph`, `awgl2`, legacy `awgpu`)
 
 ---
@@ -46,35 +45,6 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
 
 4. **Isolated Diagnostic Chaining**:
    * Components report errors to `adiag` without throwing exceptions across subsystem boundaries. Causal reference pointers (`ref`) preserve root cause traces across complex asynchronous pipelines.
-
----
-
-## Getting Started
-
-### Prerequisites
-
-* Node.js (version 18 or later)
-* WebGPU-capable browser (Google Chrome 113+, Microsoft Edge 113+, or Firefox Nightly with WebGPU enabled)
-
-### Installation
-
-```bash
-npm install
-```
-
-### Verification
-
-Run TypeScript compilation checks:
-
-```cmd
-cmd /c npx tsc --noEmit
-```
-
-Run Vite production build:
-
-```cmd
-cmd /c npx vite build
-```
 
 ---
 
