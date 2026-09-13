@@ -15,12 +15,10 @@
     "_old/**/*.ts",
     "WeebRender/**/*.ts",
     "WeebGfx/**/*.ts",
-    "prototypes/Akettle/**/*.ts",
     "prototypes/AwgpuShadowDemo/**/*.ts",
-    "prototypes/MinimalShadow/**/*.ts",
     "prototypes/RhythmGraphicArt/**/*.ts",
-    "prototypes/SuperSimple/**/*.ts",
-    "prototypes/RttCube/**/*.ts",
+    "prototypes/AwgpuRayTracing/**/*.ts",
+    "prototypes/AwgpuMotionGfx/**/*.ts",
     "hub/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts"]

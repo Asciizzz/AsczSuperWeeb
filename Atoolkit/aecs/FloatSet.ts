@@ -2,9 +2,6 @@ import type { Entity } from "./Entity.js";
 
 /**
  * Contiguous Float32Array component storage for high-frequency numeric data.
- *
- * Avoids object allocation and keeps numbers packed in a single typed array.
- * Operates standalone without any coordinator or god class.
  */
 export class FloatSet {
     readonly stride: number;

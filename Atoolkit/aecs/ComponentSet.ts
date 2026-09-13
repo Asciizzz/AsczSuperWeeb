@@ -2,9 +2,6 @@ import type { Entity } from "./Entity.js";
 
 /**
  * Contiguous component set indexed by Entity.
- *
- * Provides O(1) set, get, has, and delete via sparse-dense indexing.
- * Operates standalone without any coordinator or god class.
  */
 export class ComponentSet<T> implements Iterable<[Entity, T]> {
     readonly dense: T[] = [];

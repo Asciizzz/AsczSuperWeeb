@@ -1,171 +1,228 @@
-# Alm (Math)
+# Alm (3D Linear Algebra & Spatial Math)
 
-High-performance 3D linear algebra library for native `Float32Array` buffers. Designed for zero-allocation loops, in-place rotations, and WebGPU clip space compatibility.
-
----
-
-## Buffer Types
-
-All types represent native typed array slices without wrapper class overhead:
-
-| Type | Backing Storage | Component Packing | Memory Footprint |
-| :--- | :--- | :--- | :--- |
-| `Mat4` | `Float32Array(16)` | Column-major 4x4 matrix | 64 bytes |
-| `Vec3` | `Float32Array(3)` | 3D Cartesian coordinates `[x, y, z]` | 12 bytes |
-| `Vec2` | `Float32Array(2)` | 2D coordinates `[x, y]` | 8 bytes |
-| `Vec4` | `Float32Array(4)` | Homogeneous vector or color `[x, y, z, w]` | 16 bytes |
-| `Quat` | `Float32Array(4)` | Unit quaternion `[x, y, z, w]` | 16 bytes |
+High-performance, zero-allocation 3D linear algebra and spatial mathematics library for WebGPU and high-framerate rendering pipelines. All vector, quaternion, and matrix types extend native `Float32Array` directly, providing dual ergonomics: named component accessors (`.x`, `.y`, `.z`, `.w`), fluent zero-allocation in-place operations, static procedural procedures with `out` destination buffers, and zero-copy `ArrayBuffer` views.
 
 ---
 
-## 1. Zero-Allocation Calling Convention
+## Architecture & Memory Layout
 
-Every mathematical function accepts an optional `out` parameter. Supplying a pre-allocated buffer executes operations purely through in-place arithmetic without heap allocations:
+Every mathematical entity in `alm` subclasses `Float32Array` at a fixed component stride, guaranteeing zero serialization cost when writing directly into WebGPU buffers (`device.queue.writeBuffer`) or passing to WebGL uniforms.
+
+| Type | Dimensions | Backing Storage | Memory Size | Memory Layout |
+| :--- | :--- | :--- | :--- | :--- |
+| `Vec2` | 2D Vector | `Float32Array(2)` | 8 bytes | `[x, y]` |
+| `Vec3` | 3D Vector | `Float32Array(3)` | 12 bytes | `[x, y, z]` |
+| `Vec4` | 4D Vector | `Float32Array(4)` | 16 bytes | `[x, y, z, w]` |
+| `Quat` | Quaternion | `Float32Array(4)` | 16 bytes | `[x, y, z, w]` (Hamiltonian, identity `w = 1`) |
+| `Mat3` | 3x3 Matrix | `Float32Array(9)` | 36 bytes | Column-major 3x3 layout |
+| `Mat4` | 4x4 Matrix | `Float32Array(16)` | 64 bytes | Column-major 4x4 layout |
+| `Ray` | Ray Primitive | Object composite | 24 bytes | Origin `Vec3`, Direction `Vec3` |
+| `Plane` | 3D Plane | Object composite | 16 bytes | Normal `Vec3`, Distance `number` |
+| `AABB` | Bounding Box | Object composite | 24 bytes | Min `Vec3`, Max `Vec3` |
+| `Frustum` | Camera Frustum| Object composite | 96 bytes | 6 clipping `Plane` instances |
+
+---
+
+## 1. Dual Ergonomics: Fluent In-Place vs. Static Zero-Allocation
+
+`alm` supports two complementary execution paradigms without runtime overhead:
+1. **Fluent Instance Methods**: Methods such as `v.add(b)` or `v.scale(s)` mutate the instance in place and return `this`, enabling expressive chaining without heap allocations. When an `out` parameter is explicitly provided (`v.add(b, out)`), results are written directly to `out`.
+2. **Static Procedural Methods**: Methods such as `Vec3.add(a, b, out)` accept arbitrary `ArrayLike<number>` inputs and write directly into a destination buffer `out`. If `out` is omitted, a new instance is allocated.
+3. **Callable Constructors**: Constructors can be invoked with `new Vec3(x, y, z)` or called procedurally as `Vec3(x, y, z)`, maintaining complete backward compatibility across all pipelines.
 
 ```typescript
-import { Mat4, Vec3 } from "./index.js";
+import { Vec3, Mat4 } from "./index.js";
 
-const viewProj = new Float32Array(16);
-const model = new Float32Array(16);
-const mvp = new Float32Array(16);
+// Fluent in-place mutation (0 heap allocations)
+const velocity = new Vec3(1, 0, 0);
+const acceleration = new Vec3(0, 9.8, 0);
+velocity.scaleAndAdd(acceleration, 0.016).normalize();
 
-// Multiplies viewProj * model directly into mvp with zero heap allocations
-Mat4.mul(viewProj, model, mvp);
+// Static procedural form with preallocated destination (0 heap allocations)
+const posA = new Vec3(10, 20, 30);
+const posB = new Vec3(5, 5, 5);
+const outPos = new Vec3();
+Vec3.sub(posA, posB, outPos);
+
+// Zero-copy view into an existing ArrayBuffer
+const rawBuffer = new ArrayBuffer(64);
+const viewVec = Vec3.view(rawBuffer, 12);
+viewVec.x = 42.0;
 ```
 
-- When `out` is supplied: Mutates and returns the destination buffer. No arrays or objects are allocated.
-- When `out` is omitted: Allocates and returns a fresh `Float32Array` of the corresponding dimensions.
+### Technical Breakdown
+- `Vec3.prototype.scaleAndAdd(b, s, out = this)`: Scales vector `b` by scalar `s`, adds to current instance, writes to `out`, and returns `out`. Defaults to mutating `this`.
+- `Vec3.prototype.normalize(out = this)`: Evaluates Euclidean magnitude with an epsilon threshold (`EPSILON = 1e-6`) to prevent division by zero, writes unit vector to `out`, and returns `out`.
+- `Vec3.sub(a, b, out)`: Subtracts vector `b` from vector `a`, writes result to `out`, and returns `out`.
+- `Vec3.view(buffer, byteOffset)`: Instantiates a `Vec3` directly mapped to a specific byte offset within an existing `ArrayBuffer` without allocating independent array memory.
 
 ---
 
-## 2. 4x4 Matrices (`Mat4`)
+## 2. Vectors (`Vec2`, `Vec3`, `Vec4`)
 
-`Mat4` provides column-major 4x4 matrix operations, camera projections, in-place axis rotations, and rigid-body inversions.
+Vector classes provide named getters and setters (`.x`, `.y`, `.z`, `.w`), color aliases (`.r`, `.g`, `.b`, `.a`), texture coordinate aliases (`.u`, `.v`), and complete geometric routines.
 
 ```typescript
-import { Mat4, Vec3, Quat } from "./index.js";
+import { Vec2, Vec3, Vec4 } from "./index.js";
 
-// Matrix synthesis
-const model = Mat4.makeIdentity();
-const pos = Vec3(0, 5, -10);
-const rot = Quat.fromAxisAngle(Vec3.UP, Math.PI / 4);
-const scale = Vec3(1, 1, 1);
+// Vec2: Texture coordinates and 2D bounds
+const uv = new Vec2(0.5, 0.5);
+uv.u += 0.1;
+uv.v *= 2.0;
 
-// Synthesize TRS matrix
-Mat4.fromTRS(pos, rot, scale, model);
+// Vec3: 3D vector arithmetic and geometry
+const eye = new Vec3(0, 5, 10);
+const target = new Vec3(0, 0, 0);
+const forward = target.clone().sub(eye).normalize();
+const right = Vec3.cross(forward, Vec3.UP);
+const distance = eye.distance(target);
 
-// In-place rotation around X axis (modifies model directly without temporary matrices)
-Mat4.rotateX(model, Math.PI / 6, model);
-
-// Fast rigid inverse for camera view matrices
-const view = new Float32Array(16);
-Mat4.invertRigid(model, view);
-
-// Projections
-const projWebGPU = Mat4.perspectiveZO(Math.PI / 3, 16 / 9, 0.1, 1000.0);
-const projWebGL  = Mat4.perspectiveNO(Math.PI / 3, 16 / 9, 0.1, 1000.0);
+// Vec4: Homogeneous coordinates and RGBA colors
+const color = new Vec4(1, 0.5, 0.2, 1.0);
+color.r = Math.min(1.0, color.r * 1.2);
 ```
 
-- `Mat4.makeIdentity(out?)`: Writes identity matrix with diagonal ones.
-- `Mat4.mul(a, b, out?)`: Multiplies 4x4 matrices `a * b`.
-- `Mat4.transpose(a, out?)`: Transposes rows and columns. Safe for in-place execution (`Mat4.transpose(m, m)`).
-- `Mat4.invert(a, out?)`: Computes general 4x4 matrix inverse using cofactor expansion. Returns `null` if determinant is zero.
-- `Mat4.invertRigid(a, out?)`: Optimized inverse for rigid transformations and camera view matrices. Transposes the 3x3 rotation block and evaluates translation `-R^T * T`, computing exact inverse without general matrix determinant calculations.
-- `Mat4.normalMatrix(m, out?)`: Computes 3x3 inverse-transpose matrix written into 9-element target for surface lighting calculations.
-- `Mat4.fromTRS(pos, rotQ, scale, out?)`: Constructs complete model matrix directly from translation vector, quaternion rotation, and scale vector.
-- `Mat4.rotateX(m, rad, out?)` / `rotateY` / `rotateZ`: Rotates matrix around coordinate axes via direct trigonometric updates to column vectors, avoiding intermediate matrix allocation.
-- `Mat4.rotate(m, axis, rad, out?)`: In-place rotation around normalized arbitrary axis vector.
-- `Mat4.perspectiveZO(fovy, aspect, near, far, out?)`: Perspective projection configured for zero-to-one `[0, 1]` depth range (WebGPU, Metal, DirectX 12).
-- `Mat4.perspectiveNO(fovy, aspect, near, far, out?)`: Perspective projection configured for negative-one-to-one `[-1, 1]` depth range (WebGL, OpenGL).
-- `Mat4.orthoZO(left, right, bottom, top, near, far, out?)`: Orthographic projection with `[0, 1]` depth range.
-- `Mat4.orthoNO(left, right, bottom, top, near, far, out?)`: Orthographic projection with `[-1, 1]` depth range.
-- `Mat4.lookAt(eye, target, up, out?)`: View matrix positioning camera at `eye` facing `target` with designated `up` vector.
+### Technical Breakdown
+- `Vec2.prototype.u` / `v` / `width` / `height`: Explicit coordinate aliases referencing backing float elements index 0 and 1.
+- `Vec3.UP`, `DOWN`, `RIGHT`, `LEFT`, `FORWARD`, `BACK`, `ZERO`, `ONE`: Static standard axis vectors.
+- `Vec3.cross(a, b, out)`: Computes 3D cross product `a x b`. Evaluates vector perpendicular to the plane spanned by `a` and `b`.
+- `Vec3.prototype.distance(b)`: Computes Euclidean distance between this vector and `b` via `Math.hypot`.
+- `Vec4.prototype.r` / `g` / `b` / `a`: Component aliases mapped to index positions 0, 1, 2, and 3.
 
 ---
 
-## 3. 3D Vectors (`Vec3`)
+## 3. Quaternions (`Quat`)
 
-`Vec3` provides Cartesian vector math, cross products, transformations, and bounding box evaluations.
-
-```typescript
-import { Vec3, Mat4, Quat } from "./index.js";
-
-const v1 = Vec3(1, 2, 3);
-const v2 = Vec3(4, 5, 6);
-const result = Vec3();
-
-// Arithmetic
-Vec3.add(v1, v2, result);
-Vec3.cross(v1, v2, result);
-const dot = Vec3.dot(v1, v2);
-
-// Normalization with epsilon guard
-Vec3.norm(v1, result);
-
-// Transformations
-const model = Mat4.makeIdentity();
-const point = Vec3(10, 0, 0);
-
-// Point transformation (w = 1, applies translation)
-Vec3.transformMat4(point, model, result);
-
-// Direction transformation (w = 0, ignores translation)
-Vec3.transformMat4Direction(point, model, result);
-
-// Quaternion rotation
-const q = Quat.fromAxisAngle(Vec3.UP, Math.PI / 2);
-Vec3.transformQuat(point, q, result);
-```
-
-- Standard constants: `Vec3.UP` `[0, 1, 0]`, `Vec3.DOWN` `[0, -1, 0]`, `Vec3.RIGHT` `[1, 0, 0]`, `Vec3.LEFT` `[-1, 0, 0]`, `Vec3.FORWARD` `[0, 0, 1]`, `Vec3.BACK` `[0, 0, -1]`, `Vec3.ZERO` `[0, 0, 0]`, `Vec3.ONE` `[1, 1, 1]`.
-- `Vec3.dot(a, b)`: Scalar dot product.
-- `Vec3.cross(a, b, out?)`: Vector cross product.
-- `Vec3.len(a)` / `Vec3.lenSq(a)`: Length and squared length. `lenSq` omits square root for fast distance threshold checks.
-- `Vec3.norm(a, out?)`: Normalizes vector with epsilon protection against division by zero.
-- `Vec3.transformMat4(v, m, out?)`: Transforms 3D point assuming homogeneous coordinate `w = 1.0`, applying full translation and projection.
-- `Vec3.transformMat4Direction(v, m, out?)`: Transforms 3D direction vector assuming `w = 0.0`, ignoring matrix translation columns.
-- `Vec3.transformQuat(v, q, out?)`: Rotates 3D vector by unit quaternion using Hamiltonian vector conjugation.
-- `Vec3.reflect(v, normal, out?)`: Computes reflection direction against unit surface normal for physics and lighting.
-
----
-
-## 4. Quaternions (`Quat`)
-
-`Quat` provides unit quaternion operations for spatial rotations without gimbal lock.
+`Quat` implements Hamiltonian quaternion algebra stored in `[x, y, z, w]` order (with scalar real component at index 3). Quaternions prevent gimbal lock and provide smooth spherical linear interpolation (`slerp`).
 
 ```typescript
 import { Quat, Vec3, Mat4 } from "./index.js";
 
-// Identity and construction
-const q1 = Quat.makeIdentity();
-const q2 = Quat.fromAxisAngle(Vec3.UP, Math.PI / 2);
-const q3 = Quat.fromEuler(0, Math.PI / 4, 0); // Yaw 45 deg
+// Axis-angle rotation
+const qRot = Quat.fromAxisAngle(Vec3.UP, Math.PI * 0.5);
 
-// Hamiltonian product
-const combined = Quat();
-Quat.mul(q2, q3, combined);
+// Euler rotation (XYZ radians)
+const qEuler = Quat.fromEuler(0, Math.PI * 0.25, 0);
 
-// Spherical linear interpolation
-const blended = Quat();
-Quat.slerp(q2, q3, 0.5, blended);
+// Combine rotations via Hamiltonian multiplication: combined = qRot * qEuler
+const qCombined = Quat.mul(qRot, qEuler);
 
-// Convert to rotation matrix
-const rotMatrix = new Float32Array(16);
-Mat4.fromQuat(combined, rotMatrix);
+// Rotate vector directly via quaternion without constructing a matrix
+const forwardDir = new Vec3(0, 0, -1);
+const rotatedDir = qCombined.transformVec3(forwardDir);
 
-// Extract quaternion from matrix
-const extracted = Quat();
-Quat.fromM4(rotMatrix, extracted);
+// Spherical linear interpolation between orientations
+const qTarget = Quat.fromAxisAngle(Vec3.RIGHT, Math.PI * 0.5);
+const qBlended = Quat.slerp(qRot, qTarget, 0.5);
 ```
 
-- Storage format: Unit quaternion stored in `[x, y, z, w]` order where `w` is scalar real part.
-- `Quat.IDENTITY`: Constant `[0, 0, 0, 1]`.
-- `Quat.mul(a, b, out?)`: Hamilton product combining rotation `a` followed by rotation `b`.
-- `Quat.conjugate(q, out?)`: Reverses vector components `[-x, -y, -z, w]`, calculating exact inverse for unit quaternions.
-- `Quat.invert(q, out?)`: General quaternion inverse with length-squared normalization.
-- `Quat.fromAxisAngle(axis, rad, out?)`: Constructs unit quaternion from arbitrary normalized 3D axis and rotation angle in radians.
-- `Quat.fromEuler(x, y, z, out?)`: Converts Euler angles in radians (XYZ order) into rotation quaternion.
-- `Quat.toEulerYPR(q, out?)`: Extracts yaw, pitch, and roll angles in degrees from quaternion.
-- `Quat.fromM4(m, out?)`: Extracts rotation quaternion directly from 4x4 matrix column vectors.
-- `Quat.slerp(a, b, t, out?)`: Spherical linear interpolation between quaternions along shortest geodesic arc.
-- `Quat.transformV3(q, v, out?)`: Rotates 3D vector by quaternion directly without intermediate matrix construction.
+### Technical Breakdown
+- `Quat.IDENTITY`: Constant unit quaternion `[0, 0, 0, 1]`.
+- `Quat.fromAxisAngle(axis, rad, out)`: Constructs unit quaternion representing rotation of `rad` radians around normalized `axis`.
+- `Quat.fromEuler(x, y, z, out)`: Constructs unit quaternion from Tait-Bryan Euler angles in XYZ radian sequence.
+- `Quat.mul(a, b, out)`: Evaluates Hamilton product of quaternions `a` and `b`. Represents composite rotation: rotation `a` followed by rotation `b`.
+- `Quat.prototype.transformVec3(v, out)`: Rotates 3D vector `v` directly using optimized Rodriguez quaternion conjugation `v' = v + 2*r x (r x v + w*v)` with 0 matrix allocations.
+- `Quat.slerp(a, b, t, out)`: Performs spherical linear interpolation along the shortest geodesic arc on the 4D hypersphere with fallback to linear interpolation when orientations are near-parallel.
+
+---
+
+## 4. Matrices (`Mat3`, `Mat4`)
+
+`Mat3` and `Mat4` represent column-major transformation matrices. `Mat4` supports TRS composition, direct axis rotations, fast rigid inversion, normal matrix calculation, and dual clip-space projection modes.
+
+```typescript
+import { Mat4, Vec3, Quat, DEG2RAD } from "./index.js";
+
+// Model matrix construction from Position, Rotation, Scale
+const position = new Vec3(0, 2, -5);
+const rotation = Quat.fromAxisAngle(Vec3.UP, 45 * DEG2RAD);
+const scale = new Vec3(1, 1, 1);
+const model = Mat4.fromTRS(position, rotation, scale);
+
+// In-place rotation around specific axes (8x faster than full matrix multiplication)
+model.rotateY(15 * DEG2RAD);
+
+// Fast rigid inversion for camera view matrices (~8x faster than general matrix inverse)
+const view = Mat4.invertRigid(model);
+
+// WebGPU zero-to-one [0, 1] perspective projection
+const projWebGPU = Mat4.perspectiveZO(60 * DEG2RAD, 16 / 9, 0.1, 1000.0);
+
+// WebGL negative-one-to-one [-1, 1] perspective projection
+const projWebGL = Mat4.perspectiveNO(60 * DEG2RAD, 16 / 9, 0.1, 1000.0);
+
+// Compute combined View-Projection matrix
+const viewProj = Mat4.mul(projWebGPU, view);
+```
+
+### Technical Breakdown
+- `Mat4.fromTRS(pos, rotQ, scale, out)`: Synthesizes complete 4x4 affine model matrix directly from translation vector, quaternion rotation, and scale vector into column-major order.
+- `Mat4.prototype.rotateX(rad, out)` / `rotateY` / `rotateZ`: In-place rotations modifying matrix column vectors directly through trigonometric additions, avoiding temporary matrix allocation.
+- `Mat4.invertRigid(m, out)`: Specialized inverse for rigid-body transformations ($Scale = 1$). Transposes the $3 \times 3$ rotation submatrix and computes translation via $-R^T \cdot T$, eliminating cofactor expansion and determinant division.
+- `Mat4.invert(m, out)`: Full general 4x4 matrix inverse using cofactor expansion. Returns `null` if determinant magnitude falls below `EPSILON`.
+- `Mat4.normalMatrix(m, out)`: Computes inverse-transpose of the upper-left 3x3 submatrix. Essential for transforming vertex normals under non-uniform scaling.
+- `Mat4.perspectiveZO(fovy, aspect, near, far, out)`: Perspective projection matrix mapping depth into $[0, 1]$ clip space (WebGPU, Metal, DirectX 12). Avoids near-plane clipping artifacts and maximizes depth buffer precision.
+- `Mat4.perspectiveNO(fovy, aspect, near, far, out)`: Perspective projection matrix mapping depth into $[-1, 1]$ clip space (WebGL, OpenGL).
+
+---
+
+## 5. Batched Buffer Transformations
+
+`alm` includes unrolled, strided transformation routines for bulk vertex and position processing without allocating intermediate objects.
+
+```typescript
+import { Mat4 } from "./index.js";
+
+const vertexCount = 10000;
+const sourcePositions = new Float32Array(vertexCount * 3);
+const transformedPositions = new Float32Array(vertexCount * 3);
+
+const transformMatrix = Mat4.identity();
+
+// Transform 10,000 vertex positions in a single unrolled pass (0 allocations)
+Mat4.transformPositions(
+    transformMatrix,
+    sourcePositions,
+    transformedPositions,
+    vertexCount,
+    3, // source stride (floats per vertex)
+    3  // destination stride (floats per vertex)
+);
+```
+
+### Technical Breakdown
+- `Mat4.transformPositions(m, src, dst, count, srcStride = 3, dstStride = 3)`: Iterates over continuous or interleaved vertex buffers, transforming 3D positions with translation and perspective division ($w \neq 1$) directly in place.
+- `Mat4.transformVectors(m, src, dst, count, srcStride = 3, dstStride = 3)`: Transforms directional vectors (normals, tangents) using the matrix 3x3 rotation basis without translation.
+- `Quat.transformVectors(q, src, dst, count, srcStride = 3, dstStride = 3)`: Bulk transforms 3D direction vectors by quaternion rotation with zero per-vertex heap allocation.
+
+---
+
+## 6. Spatial Primitives & Camera Culling (`Ray`, `Plane`, `AABB`, `Frustum`)
+
+`alm` provides geometric primitives designed specifically for raycasting, bounding volume hierarchies (BVH), and camera view frustum culling in 3D scenes.
+
+```typescript
+import { Ray, Plane, AABB, Frustum, Mat4, Vec3 } from "./index.js";
+
+// Raycasting against AABB and Sphere
+const ray = new Ray(new Vec3(0, 0, -10), new Vec3(0, 0, 1));
+const box = new AABB(new Vec3(-1, -1, -1), new Vec3(1, 1, 1));
+const hitDistance = ray.intersectAABB(box); // Returns distance t along ray or null
+
+// Camera Frustum Culling
+const viewProj = Mat4.perspectiveZO(Math.PI / 3, 16 / 9, 0.1, 500.0);
+const frustum = new Frustum().fromViewProjection(viewProj, true);
+
+// Fast AABB frustum visibility test (positive vertex test)
+const isVisible = frustum.intersectsAABB(box);
+if (isVisible) {
+    // Submit mesh draw call to GPU command encoder
+}
+```
+
+### Technical Breakdown
+- `Ray.prototype.intersectAABB(aabb)`: Evaluates ray vs. axis-aligned bounding box intersection using the slab method. Returns distance $t \ge 0$ along the ray to the nearest intersection point, or `null` if the ray misses.
+- `Ray.prototype.intersectSphere(center, radius)`: Evaluates analytic ray-sphere intersection. Returns distance $t \ge 0$ or `null`.
+- `AABB.prototype.transform(m, out)`: Transforms the 8 bounding corners of this box by matrix `m` and computes the resulting axis-aligned bounding extents.
+- `Frustum.prototype.fromViewProjection(vp, isZeroToOne = true)`: Extracts the 6 frustum clipping planes (Left, Right, Bottom, Top, Near, Far) from a combined View-Projection matrix using the Gribb-Hartmann algorithm. Supports both WebGPU $[0, 1]$ and WebGL $[-1, 1]$ near planes.
+- `Frustum.prototype.intersectsAABB(aabb)`: Tests bounding box against all 6 frustum planes using positive vertex testing. Returns `false` immediately upon discovering an outside plane (fast rejection), avoiding redundant draw calls for invisible objects.
