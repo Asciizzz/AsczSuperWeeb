@@ -14,7 +14,7 @@
     "Atoolkit/**/*.ts",
     "_old/**/*.ts",
     "WeebRender/**/*.ts",
-    "WeebEngine/**/*.ts",
+    "WeebGfx/**/*.ts",
     "prototypes/Akettle/**/*.ts",
     "prototypes/AwgpuShadowDemo/**/*.ts",
     "prototypes/MinimalShadow/**/*.ts",
