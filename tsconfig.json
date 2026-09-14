@@ -12,14 +12,14 @@
   },
   "include": [
     "Atoolkit/**/*.ts",
-    "_old/**/*.ts",
     "WeebRender/**/*.ts",
     "WeebGfx/**/*.ts",
     "prototypes/AwgpuShadowDemo/**/*.ts",
     "prototypes/RhythmGraphicArt/**/*.ts",
     "prototypes/AwgpuRayTracing/**/*.ts",
     "prototypes/AwgpuMotionGfx/**/*.ts",
+    "prototypes/WeebGfxDemo/**/*.ts",
     "hub/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts"]
+  "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts", "archive"]
 }

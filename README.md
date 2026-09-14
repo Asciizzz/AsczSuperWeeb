@@ -2,7 +2,7 @@
 
 TypeScript computational toolkit and graphics architecture providing cache-coherent data structures, sparse-set ECS, allocation-free math, and domain-agnostic WebGPU execution.
 
-Repository centers primarily on `Atoolkit`, modular foundation for high-performance applications, with legacy modules preserved in `_old/` and experimental rendering abstractions in `WeebRender/`.
+Repository centers primarily on `Atoolkit`, modular foundation for high-performance applications, with legacy modules preserved in `archive/` and experimental rendering abstractions in `WeebRender/`.
 
 ---
 
@@ -28,7 +28,7 @@ Repository centers primarily on `Atoolkit`, modular foundation for high-performa
   * `alm/`: Allocation-free 3D linear algebra
   * `awgpu/`: Hardware WebGPU execution engine
   * `adiag/`: Diagnostic collector and causal trace bus
-* `_old/`: Archived legacy modules preserved for reference (`acmp`, `aflow`, `agraph`, `awgl2`, legacy `awgpu`)
+* `archive/`: Archived legacy modules preserved for reference (`acmp`, `aflow`, `agraph`, `awgl2`, legacy `awgpu`)
 
 ---
 
