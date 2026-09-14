@@ -1,11 +1,23 @@
-export { Asocket, type SocketDirection } from "./socket.js";
-export { Acnode } from "./node.js";
 export {
-    Acircuit,
-    type AcircuitOptions,
+    Socket,
+    type SocketDirection,
+    type SocketOptions,
+} from "./socket.js";
+export {
+    CircuitNode,
+    NodeProxy,
+} from "./node.js";
+export {
+    Circuit,
+    type CircuitOptions,
 } from "./circuit.js";
 export {
-    type Awire,
+    Subcircuit,
+    type InputSocketMapping,
+    type OutputSocketMapping,
+} from "./composite.js";
+export {
+    type Wire,
     inSocketKey,
     outSocketKey,
     wireEquals,
@@ -15,4 +27,11 @@ export type {
     ProcessCtx,
     RunOptions,
     RunResult,
+    CircuitIssueType,
+    CircuitIssue,
+    CircuitValidationResult,
+    SerializedSocket,
+    SerializedNode,
+    SerializedCircuit,
+    NodeFactory,
 } from "./types.js";

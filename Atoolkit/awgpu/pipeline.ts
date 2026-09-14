@@ -1,3 +1,5 @@
+import type { Diag } from "../adiag/index.js";
+
 /**
  * Format byte size lookup table for automatic stride and offset derivation.
  */
@@ -28,7 +30,7 @@ const VERTEX_FORMAT_SIZES: Record<string, number> = {
     "float16x4": 8,
 };
 
-export interface AwgpuVertexAttributeDesc {
+export interface VertexAttributeDesc {
     shaderLocation: number;
     format: GPUVertexFormat;
     offset?: number;
@@ -38,7 +40,7 @@ export interface AwgpuVertexAttributeDesc {
  * Derives GPUVertexBufferLayout with automatic cumulative offsets and 4-byte aligned arrayStride.
  */
 export function createVertexLayout(
-    attributes: AwgpuVertexAttributeDesc[],
+    attributes: VertexAttributeDesc[],
     stepMode: GPUVertexStepMode = "vertex"
 ): GPUVertexBufferLayout {
     let currentOffset = 0;
@@ -65,7 +67,7 @@ export function createVertexLayout(
     };
 }
 
-export interface AwgpuShaderMessage {
+export interface ShaderMessage {
     type: "error" | "warning" | "info";
     stage: "vertex" | "fragment" | "compute";
     message: string;
@@ -75,22 +77,16 @@ export interface AwgpuShaderMessage {
     length: number;
 }
 
-export interface AwgpuDiagnosticLogger {
-    err?(args: { code?: string; raw?: string; data?: unknown }): unknown;
-    warn?(args: { code?: string; raw?: string; data?: unknown }): unknown;
-    info?(args: { code?: string; raw?: string; data?: unknown }): unknown;
-}
-
 function reportShaderMessages(
     module: GPUShaderModule,
     stage: "vertex" | "fragment" | "compute",
     label: string,
-    onMessage?: (msg: AwgpuShaderMessage) => void,
-    diag?: AwgpuDiagnosticLogger
+    onMessage?: (msg: ShaderMessage) => void,
+    diag?: Diag
 ): void {
     module.getCompilationInfo().then((info) => {
         for (const msg of info.messages) {
-            const shaderMsg: AwgpuShaderMessage = {
+            const shaderMsg: ShaderMessage = {
                 type: msg.type as "error" | "warning" | "info",
                 stage,
                 message: msg.message,
@@ -110,7 +106,7 @@ function reportShaderMessages(
                         data: { stage, label, lineNum: msg.lineNum, linePos: msg.linePos, message: msg.message },
                     });
                 } else if (!onMessage) {
-                    console.error(`[AwgpuPipeline] ${stage} shader error in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                    console.error(`[Pipeline] ${stage} shader error in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
                 }
             } else if (msg.type === "warning") {
                 if (diag?.warn) {
@@ -120,7 +116,7 @@ function reportShaderMessages(
                         data: { stage, label, lineNum: msg.lineNum, linePos: msg.linePos, message: msg.message },
                     });
                 } else if (!onMessage) {
-                    console.warn(`[AwgpuPipeline] ${stage} shader warning in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
+                    console.warn(`[Pipeline] ${stage} shader warning in ${label} line ${msg.lineNum}:${msg.linePos}: ${msg.message}`);
                 }
             } else if (msg.type === "info") {
                 if (diag?.info) {
@@ -135,7 +131,7 @@ function reportShaderMessages(
     });
 }
 
-export interface AwgpuRenderPipelineDescriptor {
+export interface RenderPipelineDescriptor {
     label?: string;
     layout?: GPUPipelineLayout | "auto";
     bindGroupLayouts?: (GPUBindGroupLayout | null | undefined)[];
@@ -152,19 +148,19 @@ export interface AwgpuRenderPipelineDescriptor {
     depthStencil?: GPUDepthStencilState;
     primitive?: GPUPrimitiveState;
     multisample?: GPUMultisampleState;
-    onShaderMessage?: (msg: AwgpuShaderMessage) => void;
-    diag?: AwgpuDiagnosticLogger;
+    onShaderMessage?: (msg: ShaderMessage) => void;
+    diag?: Diag;
 }
 
 /**
  * WebGPU Render Pipeline wrapper supporting full shading as well as depth-only execution.
  */
-export class AwgpuRenderPipeline {
+export class RenderPipeline {
     readonly gpuPipeline: GPURenderPipeline;
     readonly label: string;
     readonly hasFragmentStage: boolean;
 
-    constructor(gpuPipeline: GPURenderPipeline, hasFragmentStage: boolean, label = "AwgpuRenderPipeline") {
+    constructor(gpuPipeline: GPURenderPipeline, hasFragmentStage: boolean, label = "RenderPipeline") {
         this.gpuPipeline = gpuPipeline;
         this.hasFragmentStage = hasFragmentStage;
         this.label = label;
@@ -173,8 +169,8 @@ export class AwgpuRenderPipeline {
     /**
      * Factory: Compiles shaders and instantiates GPURenderPipeline.
      */
-    static create(device: GPUDevice, descriptor: AwgpuRenderPipelineDescriptor): AwgpuRenderPipeline {
-        const label = descriptor.label ?? "AwgpuRenderPipeline";
+    static create(device: GPUDevice, descriptor: RenderPipelineDescriptor): RenderPipeline {
+        const label = descriptor.label ?? "RenderPipeline";
 
         // 1. Vertex Shader Module
         const vsModule = device.createShaderModule({
@@ -250,18 +246,18 @@ export class AwgpuRenderPipeline {
         }
 
         const gpuPipeline = device.createRenderPipeline(nativeDesc);
-        return new AwgpuRenderPipeline(gpuPipeline, hasFragmentStage, label);
+        return new RenderPipeline(gpuPipeline, hasFragmentStage, label);
     }
 }
 
 /**
  * WebGPU Compute Pipeline wrapper for compute shaders.
  */
-export class AwgpuComputePipeline {
+export class ComputePipeline {
     readonly gpuPipeline: GPUComputePipeline;
     readonly label: string;
 
-    constructor(gpuPipeline: GPUComputePipeline, label = "AwgpuComputePipeline") {
+    constructor(gpuPipeline: GPUComputePipeline, label = "ComputePipeline") {
         this.gpuPipeline = gpuPipeline;
         this.label = label;
     }
@@ -277,11 +273,11 @@ export class AwgpuComputePipeline {
             layout?: GPUPipelineLayout | "auto";
             bindGroupLayouts?: GPUBindGroupLayout[];
             label?: string;
-            onShaderMessage?: (msg: AwgpuShaderMessage) => void;
-            diag?: AwgpuDiagnosticLogger;
+            onShaderMessage?: (msg: ShaderMessage) => void;
+            diag?: Diag;
         }
-    ): AwgpuComputePipeline {
-        const label = options.label ?? "AwgpuComputePipeline";
+    ): ComputePipeline {
+        const label = options.label ?? "ComputePipeline";
 
         const csModule = device.createShaderModule({
             label: `${label}_CSModule`,
@@ -307,6 +303,8 @@ export class AwgpuComputePipeline {
             },
         });
 
-        return new AwgpuComputePipeline(gpuPipeline, label);
+        return new ComputePipeline(gpuPipeline, label);
     }
 }
+
+

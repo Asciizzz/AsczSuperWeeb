@@ -8,20 +8,20 @@ Structured diagnostic collector, telemetry bus, and causal error tracer. Replace
 
 Adiag structures diagnostics across three core primitives:
 
-1. `AdiagResult`: Diagnostic record with category type, machine-readable code, template text, payload data, and causal reference pointer.
-2. `Adiag`: Diagnostic bus backed by a fixed-capacity circular ring buffer.
+1. `DiagResult`: Diagnostic record with category type, machine-readable code, template text, payload data, and causal reference pointer.
+2. `Diag`: Diagnostic bus backed by a fixed-capacity circular ring buffer.
 3. Causal chain tracer: Traversal functions generating root cause failure traces across subsystem boundaries.
 
 ---
 
 ## 1. Diagnostic Records and Logging
 
-`AdiagResult` captures structured diagnostics. `Adiag` logs records into a pre-allocated circular ring buffer in O(1) time without unbounded memory growth.
+`DiagResult` captures structured diagnostics. `Diag` logs records into a pre-allocated circular ring buffer in O(1) time without unbounded memory growth.
 
 ```typescript
-import { Adiag, type AdiagResult } from "./index.js";
+import { Diag, type DiagResult } from "./index.js";
 
-const diag = new Adiag(1000);
+const diag = new Diag(1000);
 
 // Basic logging
 diag.ok({ code: "RENDER_INIT_OK" });
@@ -41,8 +41,8 @@ const fileErr = diag.err({
 });
 ```
 
-- Storage layout: Pre-allocated `#buffer: (AdiagResult | null)[]` of length `maxHistory` (default 1000). `#head` tracks the circular insertion index and `#count` tracks total active records. Once `maxHistory` is reached, subsequent additions overwrite the oldest slots in O(1).
-- `ok(args)` / `err(args)` / `warn(args)` / `info(args)`: Appends record with corresponding category type (`"ok"`, `"err"`, `"warn"`, `"info"`), returns the created `AdiagResult` instance.
+- Storage layout: Pre-allocated `#buffer: (DiagResult | null)[]` of length `maxHistory` (default 1000). `#head` tracks the circular insertion index and `#count` tracks total active records. Once `maxHistory` is reached, subsequent additions overwrite the oldest slots in O(1).
+- `ok(args)` / `err(args)` / `warn(args)` / `info(args)`: Appends record with corresponding category type (`"ok"`, `"err"`, `"warn"`, `"info"`), returns the created `DiagResult` instance.
 - `results`: Getter returning chronological snapshot array ordered from oldest active record to newest.
 - `clear()`: Resets `#head` and `#count` to 0 and clears backing buffer slots.
 
@@ -53,9 +53,9 @@ const fileErr = diag.err({
 High-level failures link directly to low-level root causes via the `ref` causal reference pointer.
 
 ```typescript
-import { Adiag } from "./index.js";
+import { Diag } from "./index.js";
 
-const diag = new Adiag();
+const diag = new Diag();
 
 // Root cause: low-level hardware or file failure
 const hardwareErr = diag.err({
@@ -73,15 +73,15 @@ const pipelineErr = diag.err({
 });
 
 // Print formatted causal trace
-console.log(Adiag.resultToChainMsg(pipelineErr));
+console.log(Diag.resultToChainMsg(pipelineErr));
 // Output:
 // Failed to initialize pipeline 'ForwardRenderer'
 //   -> Caused by: Failed to allocate uniform buffer of size 1048576 bytes
 ```
 
-- `AdiagResult.ref`: Optional pointer to another `AdiagResult` instance, linking downstream orchestrator failures directly to upstream cause.
-- `Adiag.getCauseChain(result)`: Traverses `ref` pointers into an ordered array starting at `result` down to the root cause. Uses a `Set<AdiagResult>` to detect and break circular references safely.
-- `Adiag.resultToChainMsg(result)`: Formats the entire causal chain into an indented, multi-line error trace:
+- `DiagResult.ref`: Optional pointer to another `DiagResult` instance, linking downstream orchestrator failures directly to upstream cause.
+- `Diag.getCauseChain(result)`: Traverses `ref` pointers into an ordered array starting at `result` down to the root cause. Uses a `Set<DiagResult>` to detect and break circular references safely.
+- `Diag.resultToChainMsg(result)`: Formats the entire causal chain into an indented, multi-line error trace:
   ```
   Top-level failure message
     -> Root cause failure message
@@ -91,12 +91,12 @@ console.log(Adiag.resultToChainMsg(pipelineErr));
 
 ## 3. Telemetry Queries and Inspection
 
-`Adiag` provides non-allocating backward-scanning inspection methods.
+`Diag` provides non-allocating backward-scanning inspection methods.
 
 ```typescript
-import { Adiag } from "./index.js";
+import { Diag } from "./index.js";
 
-const diag = new Adiag();
+const diag = new Diag();
 
 // Fast status checks
 const isClean = diag.allOk();    // true if no errors, warnings, or info
@@ -121,9 +121,9 @@ const allWarnings = diag.findWarns();
 `compileMsg` compiles `$key$` and dot-nested `$key.subkey$` placeholders against structured `data` objects.
 
 ```typescript
-import { Adiag } from "./index.js";
+import { Diag } from "./index.js";
 
-const message = Adiag.compileMsg(
+const message = Diag.compileMsg(
     "Shader module '$shader.label$' failed at line $line$:$col$",
     {
         shader: { label: "MainVS" },
@@ -134,5 +134,5 @@ const message = Adiag.compileMsg(
 // "Shader module 'MainVS' failed at line 42:10"
 ```
 
-- `Adiag.compileMsg(raw, data)`: Evaluates string templates by matching token patterns `/\$([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\$/g`. Traverses dot-nested property paths on `data`. Automatically extracts `Error.message`, handles primitives, and falls back to JSON serialization for objects.
-- `Adiag.resultToMsg(result)`: Convenience method compiling `result.raw` against `result.data`.
+- `Diag.compileMsg(raw, data)`: Evaluates string templates by matching token patterns `/\$([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\$/g`. Traverses dot-nested property paths on `data`. Automatically extracts `Error.message`, handles primitives, and falls back to JSON serialization for objects.
+- `Diag.resultToMsg(result)`: Convenience method compiling `result.raw` against `result.data`.

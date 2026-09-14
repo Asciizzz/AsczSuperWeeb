@@ -1,10 +1,10 @@
-import type { AwgpuBuffer } from "./buffer.js";
-import type { AwgpuTexture, AwgpuSampler } from "./target.js";
+import type { Buffer } from "./buffer.js";
+import type { Texture, Sampler } from "./target.js";
 
 /**
  * Standardized 4-tier WebGPU bind group frequency slots.
  */
-export enum AwgpuBindSlot {
+export enum BindSlot {
     Pass = 0,       // Updated once per pass (ViewProj, Viewport, Time, Globals)
     Phase = 1,      // Updated once per phase (Environment maps, global phase buffers, phase textures)
     Material = 2,   // Updated per material switch (Material parameters, Color/Normal textures, Standard samplers)
@@ -14,7 +14,7 @@ export enum AwgpuBindSlot {
 /**
  * Fluent builder for creating GPUBindGroupLayout descriptors.
  */
-export class AwgpuBindGroupLayoutBuilder {
+export class BindGroupLayoutBuilder {
     private entries: GPUBindGroupLayoutEntry[] = [];
 
     addUniform(
@@ -52,13 +52,13 @@ export class AwgpuBindGroupLayoutBuilder {
         return this;
     }
 
-
     addTexture(
         binding: number,
         visibility: GPUShaderStageFlags = GPUShaderStage.FRAGMENT,
         options: {
             sampleType?: GPUTextureSampleType;
             viewDimension?: GPUTextureViewDimension;
+            multisampled?: boolean;
         } = {}
     ): this {
         this.entries.push({
@@ -66,6 +66,28 @@ export class AwgpuBindGroupLayoutBuilder {
             visibility,
             texture: {
                 sampleType: options.sampleType ?? "float",
+                viewDimension: options.viewDimension ?? "2d",
+                multisampled: options.multisampled ?? false,
+            },
+        });
+        return this;
+    }
+
+    addStorageTexture(
+        binding: number,
+        format: GPUTextureFormat,
+        visibility: GPUShaderStageFlags = GPUShaderStage.COMPUTE,
+        options: {
+            access?: GPUStorageTextureAccess;
+            viewDimension?: GPUTextureViewDimension;
+        } = {}
+    ): this {
+        this.entries.push({
+            binding,
+            visibility,
+            storageTexture: {
+                access: options.access ?? "write-only",
+                format,
                 viewDimension: options.viewDimension ?? "2d",
             },
         });
@@ -75,35 +97,33 @@ export class AwgpuBindGroupLayoutBuilder {
     addDepthTexture(
         binding: number,
         visibility: GPUShaderStageFlags = GPUShaderStage.FRAGMENT,
-        options: { viewDimension?: GPUTextureViewDimension } = {}
+        options: { viewDimension?: GPUTextureViewDimension; multisampled?: boolean } = {}
     ): this {
-        this.entries.push({
-            binding,
-            visibility,
-            texture: {
-                sampleType: "depth",
-                viewDimension: options.viewDimension ?? "2d",
-            },
+        return this.addTexture(binding, visibility, {
+            sampleType: "depth",
+            viewDimension: options.viewDimension,
+            multisampled: options.multisampled,
         });
-        return this;
     }
 
     addSampler(
         binding: number,
         visibility: GPUShaderStageFlags = GPUShaderStage.FRAGMENT,
-        options: { comparison?: boolean } = {}
+        optionsOrType: GPUSamplerBindingType | { comparison?: boolean } = "filtering"
     ): this {
+        const type: GPUSamplerBindingType =
+            typeof optionsOrType === "object"
+                ? (optionsOrType.comparison ? "comparison" : "filtering")
+                : optionsOrType;
         this.entries.push({
             binding,
             visibility,
-            sampler: {
-                type: options.comparison ? "comparison" : "filtering",
-            },
+            sampler: { type },
         });
         return this;
     }
 
-    build(device: GPUDevice, label = "AwgpuBindGroupLayout"): GPUBindGroupLayout {
+    build(device: GPUDevice, label = "BindGroupLayout"): GPUBindGroupLayout {
         return device.createBindGroupLayout({
             label,
             entries: this.entries,
@@ -111,23 +131,23 @@ export class AwgpuBindGroupLayoutBuilder {
     }
 }
 
-export type AwgpuResourceBinding =
+export type ResourceBinding =
     | GPUBufferBinding
     | GPUTextureView
     | GPUSampler
-    | AwgpuBuffer
-    | AwgpuTexture
-    | AwgpuSampler;
+    | Buffer
+    | Texture
+    | Sampler;
 
-export interface AwgpuBindingEntry {
+export interface BindingEntry {
     binding: number;
-    resource: AwgpuResourceBinding;
+    resource: ResourceBinding;
 }
 
 /**
  * GPU bind group wrapper tracking slot index and layout.
  */
-export class AwgpuBindGroup {
+export class BindGroup {
     readonly gpuBindGroup: GPUBindGroup;
     readonly layout: GPUBindGroupLayout;
     readonly slot: number;
@@ -136,8 +156,8 @@ export class AwgpuBindGroup {
     constructor(
         gpuBindGroup: GPUBindGroup,
         layout: GPUBindGroupLayout,
-        slot: number = AwgpuBindSlot.Pass,
-        label = "AwgpuBindGroup"
+        slot: number = BindSlot.Pass,
+        label = "BindGroup"
     ) {
         this.gpuBindGroup = gpuBindGroup;
         this.layout = layout;
@@ -148,7 +168,7 @@ export class AwgpuBindGroup {
     /**
      * Resolves resource wrappers into native GPUBindingResource descriptors.
      */
-    static resolveResource(res: AwgpuResourceBinding): GPUBindingResource {
+    static resolveResource(res: ResourceBinding): GPUBindingResource {
         if ("gpuBuffer" in res) {
             return { buffer: res.gpuBuffer };
         }
@@ -167,15 +187,15 @@ export class AwgpuBindGroup {
     static create(
         device: GPUDevice,
         layout: GPUBindGroupLayout,
-        entries: AwgpuBindingEntry[],
+        entries: BindingEntry[],
         options: { slot?: number; label?: string } = {}
-    ): AwgpuBindGroup {
-        const label = options.label ?? "AwgpuBindGroup";
-        const slot = options.slot ?? AwgpuBindSlot.Pass;
+    ): BindGroup {
+        const label = options.label ?? "BindGroup";
+        const slot = options.slot ?? BindSlot.Pass;
 
         const resolvedEntries: GPUBindGroupEntry[] = entries.map((e) => ({
             binding: e.binding,
-            resource: AwgpuBindGroup.resolveResource(e.resource),
+            resource: BindGroup.resolveResource(e.resource),
         }));
 
         const gpuBindGroup = device.createBindGroup({
@@ -184,6 +204,6 @@ export class AwgpuBindGroup {
             entries: resolvedEntries,
         });
 
-        return new AwgpuBindGroup(gpuBindGroup, layout, slot, label);
+        return new BindGroup(gpuBindGroup, layout, slot, label);
     }
 }

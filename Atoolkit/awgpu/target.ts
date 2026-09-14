@@ -1,9 +1,9 @@
-import type { AwgpuDevice } from "./device.js";
+import type { Device } from "./device.js";
 
 /**
  * GPU texture wrapper containing hardware texture, view, and metadata.
  */
-export class AwgpuTexture {
+export class Texture {
     readonly gpuTexture: GPUTexture;
     readonly gpuView: GPUTextureView;
     width: number;
@@ -38,7 +38,7 @@ export class AwgpuTexture {
         this.sampleCount = options.sampleCount ?? 1;
         this.usage = usage;
         this.gpuOwned = options.gpuOwned ?? true;
-        this.label = options.label ?? gpuTexture.label ?? "AwgpuTexture";
+        this.label = options.label ?? gpuTexture.label ?? "Texture";
     }
 
     destroy(): void {
@@ -60,12 +60,12 @@ export class AwgpuTexture {
             sampleCount?: number;
             label?: string;
         }
-    ): AwgpuTexture {
+    ): Texture {
         const w = Math.max(1, options.width);
         const h = Math.max(1, options.height);
         const format = options.format ?? "rgba8unorm";
         const usage = options.usage ?? (GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST);
-        const label = options.label ?? "AwgpuTexture2D";
+        const label = options.label ?? "Texture2D";
 
         const gpuTexture = device.createTexture({
             label,
@@ -75,7 +75,7 @@ export class AwgpuTexture {
             sampleCount: options.sampleCount ?? 1,
         });
         const gpuView = gpuTexture.createView({ label: `${label}_View` });
-        return new AwgpuTexture(gpuTexture, gpuView, w, h, format, usage, { label, sampleCount: options.sampleCount });
+        return new Texture(gpuTexture, gpuView, w, h, format, usage, { label, sampleCount: options.sampleCount });
     }
 
     /**
@@ -90,12 +90,12 @@ export class AwgpuTexture {
             usage?: GPUTextureUsageFlags;
             label?: string;
         }
-    ): AwgpuTexture {
+    ): Texture {
         const w = Math.max(1, options.width);
         const h = Math.max(1, options.height);
         const format = options.format ?? "depth24plus";
         const usage = options.usage ?? (GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING);
-        const label = options.label ?? "AwgpuDepthTexture";
+        const label = options.label ?? "DepthTexture";
 
         const gpuTexture = device.createTexture({
             label,
@@ -104,7 +104,7 @@ export class AwgpuTexture {
             usage,
         });
         const gpuView = gpuTexture.createView({ label: `${label}_View` });
-        return new AwgpuTexture(gpuTexture, gpuView, w, h, format, usage, { label });
+        return new Texture(gpuTexture, gpuView, w, h, format, usage, { label });
     }
 
     /**
@@ -117,9 +117,9 @@ export class AwgpuTexture {
             label?: string;
             gpuOwned?: boolean;
         } = {}
-    ): AwgpuTexture {
+    ): Texture {
         const view = options.view ?? gpuTexture.createView();
-        return new AwgpuTexture(
+        return new Texture(
             gpuTexture,
             view,
             gpuTexture.width,
@@ -139,11 +139,11 @@ export class AwgpuTexture {
 /**
  * GPU sampler wrapper supporting filtering and depth comparison.
  */
-export class AwgpuSampler {
+export class Sampler {
     readonly gpuSampler: GPUSampler;
     readonly label: string;
 
-    constructor(gpuSampler: GPUSampler, label = "AwgpuSampler") {
+    constructor(gpuSampler: GPUSampler, label = "Sampler") {
         this.gpuSampler = gpuSampler;
         this.label = label;
     }
@@ -151,7 +151,7 @@ export class AwgpuSampler {
     /**
      * Creates standard trilinear or bilinear filtering sampler.
      */
-    static createLinear(device: GPUDevice, label = "AwgpuSamplerLinear"): AwgpuSampler {
+    static createLinear(device: GPUDevice, label = "SamplerLinear"): Sampler {
         const gpuSampler = device.createSampler({
             label,
             magFilter: "linear",
@@ -160,13 +160,13 @@ export class AwgpuSampler {
             addressModeU: "repeat",
             addressModeV: "repeat",
         });
-        return new AwgpuSampler(gpuSampler, label);
+        return new Sampler(gpuSampler, label);
     }
 
     /**
      * Creates point / nearest-neighbor sampler.
      */
-    static createNearest(device: GPUDevice, label = "AwgpuSamplerNearest"): AwgpuSampler {
+    static createNearest(device: GPUDevice, label = "SamplerNearest"): Sampler {
         const gpuSampler = device.createSampler({
             label,
             magFilter: "nearest",
@@ -175,7 +175,7 @@ export class AwgpuSampler {
             addressModeU: "clamp-to-edge",
             addressModeV: "clamp-to-edge",
         });
-        return new AwgpuSampler(gpuSampler, label);
+        return new Sampler(gpuSampler, label);
     }
 
     /**
@@ -187,8 +187,8 @@ export class AwgpuSampler {
             compare?: GPUCompareFunction;
             label?: string;
         } = {}
-    ): AwgpuSampler {
-        const label = options.label ?? "AwgpuComparisonSampler";
+    ): Sampler {
+        const label = options.label ?? "ComparisonSampler";
         const gpuSampler = device.createSampler({
             label,
             compare: options.compare ?? "less",
@@ -197,20 +197,20 @@ export class AwgpuSampler {
             addressModeU: "clamp-to-edge",
             addressModeV: "clamp-to-edge",
         });
-        return new AwgpuSampler(gpuSampler, label);
+        return new Sampler(gpuSampler, label);
     }
 }
 
-export interface AwgpuColorAttachmentConfig {
-    texture: AwgpuTexture | null; // null indicates swapchain canvas texture view
+export interface ColorAttachmentConfig {
+    texture: Texture | null; // null indicates swapchain canvas texture view
     clearColor?: { r: number; g: number; b: number; a: number };
     loadOp?: GPULoadOp;
     storeOp?: GPUStoreOp;
-    resolveTarget?: AwgpuTexture | null;
+    resolveTarget?: Texture | null;
 }
 
-export interface AwgpuDepthAttachmentConfig {
-    texture: AwgpuTexture;
+export interface DepthAttachmentConfig {
+    texture: Texture;
     depthClearValue?: number;
     depthLoadOp?: GPULoadOp;
     depthStoreOp?: GPUStoreOp;
@@ -222,14 +222,14 @@ export interface AwgpuDepthAttachmentConfig {
 /**
  * Render destination descriptor supporting screen canvas, offscreen color buffers, MRT, and depth-only targets.
  */
-export class AwgpuRenderTarget {
+export class RenderTarget {
     readonly label: string;
     readonly isScreen: boolean;
-    gfx?: AwgpuDevice;
+    gfx?: Device;
     width: number;
     height: number;
-    colorAttachments: AwgpuColorAttachmentConfig[] = [];
-    depthAttachment?: AwgpuDepthAttachmentConfig;
+    colorAttachments: ColorAttachmentConfig[] = [];
+    depthAttachment?: DepthAttachmentConfig;
 
     private depthFormat?: GPUTextureFormat;
     private colorFormat?: GPUTextureFormat;
@@ -242,9 +242,9 @@ export class AwgpuRenderTarget {
         height: number,
         options: {
             isScreen?: boolean;
-            gfx?: AwgpuDevice;
-            colorAttachments?: AwgpuColorAttachmentConfig[];
-            depthAttachment?: AwgpuDepthAttachmentConfig;
+            gfx?: Device;
+            colorAttachments?: ColorAttachmentConfig[];
+            depthAttachment?: DepthAttachmentConfig;
             depthFormat?: GPUTextureFormat;
             colorFormat?: GPUTextureFormat;
         } = {}
@@ -264,14 +264,18 @@ export class AwgpuRenderTarget {
      * Factory: Creates render target bound to canvas swapchain backbuffer.
      * Set depthFormat: null to create a pure color screen target (e.g. for 2D/post-processing).
      */
+    /**
+     * Factory: Creates render target bound to canvas swapchain backbuffer.
+     * Set depthFormat: null to create a pure color screen target (e.g. for 2D/post-processing).
+     */
     static createScreen(
-        gfx: AwgpuDevice,
+        gfx: Device,
         options: {
             depthFormat?: GPUTextureFormat | null;
             clearColor?: { r: number; g: number; b: number; a: number };
             label?: string;
         } = {}
-    ): AwgpuRenderTarget {
+    ): RenderTarget {
         const device = gfx.device;
         const canvas = gfx.canvas!;
         const w = Math.max(1, canvas.width);
@@ -279,11 +283,11 @@ export class AwgpuRenderTarget {
         const hasDepth = options.depthFormat !== null;
         const depthFormat = hasDepth ? (options.depthFormat ?? "depth24plus") : undefined;
         const clearColor = options.clearColor ?? { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-        const label = options.label ?? "AwgpuScreenTarget";
+        const label = options.label ?? "ScreenTarget";
 
-        let depthAttachment: AwgpuDepthAttachmentConfig | undefined;
+        let depthAttachment: DepthAttachmentConfig | undefined;
         if (depthFormat) {
-            const depthTex = AwgpuTexture.createDepth(device, {
+            const depthTex = Texture.createDepth(device, {
                 width: w,
                 height: h,
                 format: depthFormat,
@@ -297,7 +301,7 @@ export class AwgpuRenderTarget {
             };
         }
 
-        return new AwgpuRenderTarget(label, w, h, {
+        return new RenderTarget(label, w, h, {
             isScreen: true,
             gfx,
             colorAttachments: [
@@ -328,16 +332,16 @@ export class AwgpuRenderTarget {
             clearColor?: { r: number; g: number; b: number; a: number };
             label?: string;
         } = {}
-    ): AwgpuRenderTarget {
+    ): RenderTarget {
         const w = Math.max(1, width);
         const h = Math.max(1, height);
         const colorFormat = options.colorFormat ?? "rgba8unorm";
         const hasDepth = options.depthFormat !== null;
         const depthFormat = hasDepth ? (options.depthFormat ?? "depth24plus") : undefined;
         const clearColor = options.clearColor ?? { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-        const label = options.label ?? "AwgpuOffscreenTarget";
+        const label = options.label ?? "OffscreenTarget";
 
-        const colorTex = AwgpuTexture.create2D(device, {
+        const colorTex = Texture.create2D(device, {
             width: w,
             height: h,
             format: colorFormat,
@@ -345,9 +349,9 @@ export class AwgpuRenderTarget {
             label: `${label}_Color0`,
         });
 
-        let depthAttachment: AwgpuDepthAttachmentConfig | undefined;
+        let depthAttachment: DepthAttachmentConfig | undefined;
         if (depthFormat) {
-            const depthTex = AwgpuTexture.createDepth(device, {
+            const depthTex = Texture.createDepth(device, {
                 width: w,
                 height: h,
                 format: depthFormat,
@@ -361,7 +365,7 @@ export class AwgpuRenderTarget {
             };
         }
 
-        return new AwgpuRenderTarget(label, w, h, {
+        return new RenderTarget(label, w, h, {
             isScreen: false,
             colorAttachments: [
                 {
@@ -388,13 +392,13 @@ export class AwgpuRenderTarget {
             depthFormat?: GPUTextureFormat;
             label?: string;
         } = {}
-    ): AwgpuRenderTarget {
+    ): RenderTarget {
         const w = Math.max(1, width);
         const h = Math.max(1, height);
         const depthFormat = options.depthFormat ?? "depth32float";
-        const label = options.label ?? "AwgpuDepthOnlyTarget";
+        const label = options.label ?? "DepthOnlyTarget";
 
-        const depthTex = AwgpuTexture.createDepth(device, {
+        const depthTex = Texture.createDepth(device, {
             width: w,
             height: h,
             format: depthFormat,
@@ -402,7 +406,7 @@ export class AwgpuRenderTarget {
             label: `${label}_Depth`,
         });
 
-        return new AwgpuRenderTarget(label, w, h, {
+        return new RenderTarget(label, w, h, {
             isScreen: false,
             colorAttachments: [], // No color attachments in depth-only mode
             depthAttachment: {
@@ -429,7 +433,7 @@ export class AwgpuRenderTarget {
         // Reallocate depth texture
         if (this.depthAttachment && this.depthFormat) {
             this.depthAttachment.texture.destroy();
-            this.depthAttachment.texture = AwgpuTexture.createDepth(device, {
+            this.depthAttachment.texture = Texture.createDepth(device, {
                 width: w,
                 height: h,
                 format: this.depthFormat,
@@ -443,7 +447,7 @@ export class AwgpuRenderTarget {
                 const ca = this.colorAttachments[i];
                 if (ca.texture) {
                     ca.texture.destroy();
-                    ca.texture = AwgpuTexture.create2D(device, {
+                    ca.texture = Texture.create2D(device, {
                         width: w,
                         height: h,
                         format: this.colorFormat,
@@ -572,3 +576,5 @@ export class AwgpuRenderTarget {
         }
     }
 }
+
+

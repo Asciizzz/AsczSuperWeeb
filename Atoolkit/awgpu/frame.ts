@@ -1,14 +1,14 @@
-import type { AwgpuPass, AwgpuComputePass } from "./pass.js";
-import type { AwgpuDevice } from "./device.js";
+import type { Pass, ComputePass } from "./pass.js";
+import type { Device } from "./device.js";
 
 /**
  * Top-level multi-pass frame orchestrator.
  * Sequences render and compute passes and submits recorded GPU commands to hardware queue.
  */
-export class AwgpuFrame {
-    readonly passes: (AwgpuPass | AwgpuComputePass)[] = [];
+export class Frame {
+    readonly passes: (Pass | ComputePass)[] = [];
 
-    addPass(pass: AwgpuPass | AwgpuComputePass): this {
+    addPass(pass: Pass | ComputePass): this {
         this.passes.push(pass);
         return this;
     }
@@ -19,9 +19,9 @@ export class AwgpuFrame {
 
     /**
      * Executes recorded passes in order and submits command buffer to device queue.
-     * Accepts either raw GPUDevice or AwgpuDevice instance.
+     * Accepts either raw GPUDevice or Device instance.
      */
-    execute(deviceOrGfx: GPUDevice | AwgpuDevice, label = "AwgpuFrame"): void {
+    execute(deviceOrGfx: GPUDevice | Device, label = "Frame"): void {
         const device = "device" in deviceOrGfx ? deviceOrGfx.device : deviceOrGfx;
         const queue = "queue" in deviceOrGfx ? deviceOrGfx.queue : device.queue;
 

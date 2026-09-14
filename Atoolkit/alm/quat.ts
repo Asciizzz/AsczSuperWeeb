@@ -498,9 +498,9 @@ export class _Quat extends Float32Array {
 
     static fromMat4(m: ArrayLike<number>, out?: _Quat): _Quat {
         out ??= new _Quat();
-        const m00 = m[0], m01 = m[1], m02 = m[2];
-        const m10 = m[4], m11 = m[5], m12 = m[6];
-        const m20 = m[8], m21 = m[9], m22 = m[10];
+        const m00 = m[0], m10 = m[1], m20 = m[2];
+        const m01 = m[4], m11 = m[5], m21 = m[6];
+        const m02 = m[8], m12 = m[9], m22 = m[10];
         const trace = m00 + m11 + m22;
 
         let s: number;

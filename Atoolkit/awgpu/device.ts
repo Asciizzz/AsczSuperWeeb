@@ -1,6 +1,6 @@
-import { AwgpuRenderTarget } from "./target.js";
+import { RenderTarget } from "./target.js";
 
-export interface AwgpuDeviceOptions {
+export interface DeviceOptions {
     /** Target canvas element or selector string. If omitted, device initializes in headless mode. */
     canvas?: string | HTMLCanvasElement | null;
     /** Preferred texture format for canvas presentation; defaults to navigator.gpu.getPreferredCanvasFormat() */
@@ -31,7 +31,7 @@ function resolveCanvas(canvasRef: string | HTMLCanvasElement | null | undefined)
  * Hardware WebGPU device wrapper managing adapter negotiation, device lifetime,
  * command submission queue, and canvas presentation context.
  */
-export class AwgpuDevice {
+export class Device {
     readonly adapter: GPUAdapter;
     readonly device: GPUDevice;
     readonly queue: GPUQueue;
@@ -56,15 +56,15 @@ export class AwgpuDevice {
         this.format = format;
         this.canvas = options.canvas ?? null;
         this.canvasContext = options.canvasContext ?? null;
-        this.label = options.label ?? "AwgpuDevice";
+        this.label = options.label ?? "Device";
     }
 
     /**
      * Initializes WebGPU device connected to HTML canvas for graphics rendering.
      */
-    static async create(options: AwgpuDeviceOptions = {}): Promise<AwgpuDevice> {
+    static async create(options: DeviceOptions = {}): Promise<Device> {
         if (typeof navigator === "undefined" || !navigator.gpu) {
-            throw new Error("[AwgpuDevice] WebGPU is not supported or not available in this environment.");
+            throw new Error("[Device] WebGPU is not supported or not available in this environment.");
         }
 
         const canvas = resolveCanvas(options.canvas);
@@ -72,11 +72,11 @@ export class AwgpuDevice {
 
         const adapter = await navigator.gpu.requestAdapter({ powerPreference });
         if (!adapter) {
-            throw new Error("[AwgpuDevice] Failed to acquire WebGPU GPUAdapter.");
+            throw new Error("[Device] Failed to acquire WebGPU GPUAdapter.");
         }
 
         const device = await adapter.requestDevice({
-            label: options.label ?? "Awgpu_GPUDevice",
+            label: options.label ?? "Device_GPUDevice",
             requiredFeatures: options.requiredFeatures,
             requiredLimits: options.requiredLimits,
         });
@@ -87,7 +87,7 @@ export class AwgpuDevice {
         if (canvas) {
             canvasContext = canvas.getContext("webgpu") as GPUCanvasContext | null;
             if (!canvasContext) {
-                throw new Error("[AwgpuDevice] Failed to get WebGPU context from canvas element.");
+                throw new Error("[Device] Failed to get WebGPU context from canvas element.");
             }
             canvasContext.configure({
                 device,
@@ -96,18 +96,18 @@ export class AwgpuDevice {
             });
         }
 
-        return new AwgpuDevice(adapter, device, format, {
+        return new Device(adapter, device, format, {
             canvas,
             canvasContext,
-            label: options.label ?? "AwgpuDevice",
+            label: options.label ?? "Device",
         });
     }
 
     /**
      * Initializes headless WebGPU device without canvas (for compute passes, tests, or offscreen workers).
      */
-    static async createHeadless(options: Omit<AwgpuDeviceOptions, "canvas"> = {}): Promise<AwgpuDevice> {
-        return AwgpuDevice.create({ ...options, canvas: null });
+    static async createHeadless(options: Omit<DeviceOptions, "canvas"> = {}): Promise<Device> {
+        return Device.create({ ...options, canvas: null });
     }
 
     /**
@@ -119,17 +119,17 @@ export class AwgpuDevice {
             clearColor?: { r: number; g: number; b: number; a: number };
             label?: string;
         } = {}
-    ): AwgpuRenderTarget {
+    ): RenderTarget {
         if (!this.canvas || !this.canvasContext) {
-            throw new Error("[AwgpuDevice.createScreenTarget] Cannot create screen target on headless device.");
+            throw new Error("[Device.createScreenTarget] Cannot create screen target on headless device.");
         }
-        return AwgpuRenderTarget.createScreen(this, options);
+        return RenderTarget.createScreen(this as any, options);
     }
 
     /**
      * Creates fresh GPUCommandEncoder on device.
      */
-    createCommandEncoder(label = "AwgpuCommandEncoder"): GPUCommandEncoder {
+    createCommandEncoder(label = "CommandEncoder"): GPUCommandEncoder {
         return this.device.createCommandEncoder({ label });
     }
 

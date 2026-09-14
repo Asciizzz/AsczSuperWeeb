@@ -4,71 +4,55 @@
 
 // 1. Hardware Device & Canvas Presentation
 export {
-    AwgpuDevice,
-    AwgpuDevice as Backend,
-    AwgpuDevice as Device,
-    type AwgpuDeviceOptions,
+    Device,
+    type DeviceOptions,
 } from "./device.js";
 
 // 2. Targets, Textures & Samplers
 export {
-    AwgpuTexture,
-    AwgpuTexture as Texture,
-    AwgpuSampler,
-    AwgpuSampler as Sampler,
-    AwgpuRenderTarget,
-    AwgpuRenderTarget as RenderTarget,
-    type AwgpuColorAttachmentConfig,
-    type AwgpuDepthAttachmentConfig,
+    Texture,
+    Sampler,
+    RenderTarget,
+    type ColorAttachmentConfig,
+    type DepthAttachmentConfig,
 } from "./target.js";
 
 // 3. Buffers & Memory Pools
 export {
-    AwgpuBuffer,
-    AwgpuBuffer as Buffer,
-    AwgpuBufferPool,
-    AwgpuBufferPool as BufferPool,
-    type AwgpuBufferData,
+    Buffer,
+    BufferPool,
+    type BufferData,
 } from "./buffer.js";
 
 // 4. Layouts & Bind Group Frequency Slots
 export {
-    AwgpuBindSlot,
-    AwgpuBindSlot as BindSlot,
-    AwgpuBindGroupLayoutBuilder,
-    AwgpuBindGroupLayoutBuilder as BindGroupLayoutBuilder,
-    AwgpuBindGroup,
-    AwgpuBindGroup as BindGroup,
-    type AwgpuBindingEntry,
-    type AwgpuResourceBinding,
+    BindSlot,
+    BindGroupLayoutBuilder,
+    BindGroup,
+    type BindingEntry,
+    type ResourceBinding,
 } from "./layout.js";
 
 // 5. Pipelines & Shader Modules
 export {
     createVertexLayout,
-    AwgpuRenderPipeline,
-    AwgpuRenderPipeline as RenderPipeline,
-    AwgpuComputePipeline,
-    AwgpuComputePipeline as ComputePipeline,
-    type AwgpuVertexAttributeDesc,
-    type AwgpuRenderPipelineDescriptor,
-    type AwgpuShaderMessage,
-    type AwgpuDiagnosticLogger,
+    RenderPipeline,
+    ComputePipeline,
+    type VertexAttributeDesc,
+    type RenderPipelineDescriptor,
+    type ShaderMessage,
 } from "./pipeline.js";
 
 // 6. Passes & Command Batches
 export {
-    AwgpuPass,
-    AwgpuPass as Pass,
-    AwgpuComputePass,
-    AwgpuComputePass as ComputePass,
-    type AwgpuDrawCommand,
-    type AwgpuComputeCommand,
-    type AwgpuDynamicOffsets,
+    Pass,
+    ComputePass,
+    type DrawCommand,
+    type ComputeCommand,
+    type DynamicOffsets,
 } from "./pass.js";
 
 // 7. Frame Orchestration
 export {
-    AwgpuFrame,
-    AwgpuFrame as Frame,
+    Frame,
 } from "./frame.js";

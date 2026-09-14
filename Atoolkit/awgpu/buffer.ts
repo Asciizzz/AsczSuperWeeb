@@ -1,4 +1,4 @@
-export type AwgpuBufferData =
+export type BufferData =
     | BufferSource
     | ArrayBufferView
     | Float32Array
@@ -11,7 +11,7 @@ export type AwgpuBufferData =
 /**
  * GPU buffer wrapper supporting uniform, storage, vertex, and index operations.
  */
-export class AwgpuBuffer {
+export class Buffer {
     readonly gpuBuffer: GPUBuffer;
     readonly size: number;
     readonly usage: GPUBufferUsageFlags;
@@ -27,14 +27,14 @@ export class AwgpuBuffer {
         this.gpuBuffer = gpuBuffer;
         this.size = size;
         this.usage = usage;
-        this.label = options.label ?? gpuBuffer.label ?? "AwgpuBuffer";
+        this.label = options.label ?? gpuBuffer.label ?? "Buffer";
         this.gpuOwned = options.gpuOwned ?? true;
     }
 
     /**
      * Uploads fresh data to GPU buffer using queue.writeBuffer.
      */
-    write(device: GPUDevice, data: AwgpuBufferData, bufferOffset = 0): void {
+    write(device: GPUDevice, data: BufferData, bufferOffset = 0): void {
         const view = data as ArrayBufferView;
         const byteLength = view.byteLength ?? (data as ArrayBuffer).byteLength;
         const buffer = view.buffer ?? (data as ArrayBuffer);
@@ -62,14 +62,14 @@ export class AwgpuBuffer {
         options: {
             size: number;
             usage: GPUBufferUsageFlags;
-            data?: AwgpuBufferData;
+            data?: BufferData;
             label?: string;
         }
-    ): AwgpuBuffer {
+    ): Buffer {
         // Enforce 4-byte alignment
         const alignedSize = Math.max(4, Math.ceil(options.size / 4) * 4);
         const usage = options.usage | (options.data ? GPUBufferUsage.COPY_DST : 0);
-        const label = options.label ?? "AwgpuBuffer";
+        const label = options.label ?? "Buffer";
 
         const gpuBuffer = device.createBuffer({
             label,
@@ -77,7 +77,7 @@ export class AwgpuBuffer {
             usage,
         });
 
-        const buf = new AwgpuBuffer(gpuBuffer, alignedSize, usage, { label });
+        const buf = new Buffer(gpuBuffer, alignedSize, usage, { label });
         if (options.data) {
             buf.write(device, options.data);
         }
@@ -89,17 +89,17 @@ export class AwgpuBuffer {
      */
     static createUniform(
         device: GPUDevice,
-        sizeOrData: number | AwgpuBufferData,
-        label = "AwgpuUniformBuffer"
-    ): AwgpuBuffer {
+        sizeOrData: number | BufferData,
+        label = "UniformBuffer"
+    ): Buffer {
         const isData = typeof sizeOrData !== "number";
         const rawSize = isData ? (sizeOrData as ArrayBufferView).byteLength ?? (sizeOrData as ArrayBuffer).byteLength : (sizeOrData as number);
         // Minimum uniform size is 16 bytes, aligned to 16
         const size = Math.max(16, Math.ceil(rawSize / 16) * 16);
-        return AwgpuBuffer.create(device, {
+        return Buffer.create(device, {
             size,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-            data: isData ? (sizeOrData as AwgpuBufferData) : undefined,
+            data: isData ? (sizeOrData as BufferData) : undefined,
             label,
         });
     }
@@ -109,17 +109,17 @@ export class AwgpuBuffer {
      */
     static createStorage(
         device: GPUDevice,
-        sizeOrData: number | AwgpuBufferData,
+        sizeOrData: number | BufferData,
         options: { readOnly?: boolean; label?: string } = {}
-    ): AwgpuBuffer {
+    ): Buffer {
         const isData = typeof sizeOrData !== "number";
         const rawSize = isData ? (sizeOrData as ArrayBufferView).byteLength ?? (sizeOrData as ArrayBuffer).byteLength : (sizeOrData as number);
         const size = Math.max(16, Math.ceil(rawSize / 4) * 4);
-        const label = options.label ?? "AwgpuStorageBuffer";
-        return AwgpuBuffer.create(device, {
+        const label = options.label ?? "StorageBuffer";
+        return Buffer.create(device, {
             size,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-            data: isData ? (sizeOrData as AwgpuBufferData) : undefined,
+            data: isData ? (sizeOrData as BufferData) : undefined,
             label,
         });
     }
@@ -129,16 +129,16 @@ export class AwgpuBuffer {
      */
     static createVertex(
         device: GPUDevice,
-        dataOrSize: AwgpuBufferData | number,
-        label = "AwgpuVertexBuffer"
-    ): AwgpuBuffer {
+        dataOrSize: BufferData | number,
+        label = "VertexBuffer"
+    ): Buffer {
         const isData = typeof dataOrSize !== "number";
         const rawSize = isData ? (dataOrSize as ArrayBufferView).byteLength ?? (dataOrSize as ArrayBuffer).byteLength : (dataOrSize as number);
         const size = Math.max(4, Math.ceil(rawSize / 4) * 4);
-        return AwgpuBuffer.create(device, {
+        return Buffer.create(device, {
             size,
             usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-            data: isData ? (dataOrSize as AwgpuBufferData) : undefined,
+            data: isData ? (dataOrSize as BufferData) : undefined,
             label,
         });
     }
@@ -148,16 +148,16 @@ export class AwgpuBuffer {
      */
     static createIndex(
         device: GPUDevice,
-        dataOrSize: AwgpuBufferData | number,
-        label = "AwgpuIndexBuffer"
-    ): AwgpuBuffer {
+        dataOrSize: BufferData | number,
+        label = "IndexBuffer"
+    ): Buffer {
         const isData = typeof dataOrSize !== "number";
         const rawSize = isData ? (dataOrSize as ArrayBufferView).byteLength ?? (dataOrSize as ArrayBuffer).byteLength : (dataOrSize as number);
         const size = Math.max(4, Math.ceil(rawSize / 4) * 4);
-        return AwgpuBuffer.create(device, {
+        return Buffer.create(device, {
             size,
             usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-            data: isData ? (dataOrSize as AwgpuBufferData) : undefined,
+            data: isData ? (dataOrSize as BufferData) : undefined,
             label,
         });
     }
@@ -166,20 +166,21 @@ export class AwgpuBuffer {
 /**
  * Reusable GPU buffer pool for dynamic per-frame allocation without destruction thrashing.
  */
-export class AwgpuBufferPool {
-    private _available: AwgpuBuffer[] = [];
-    private _inUse: AwgpuBuffer[] = [];
+export class BufferPool {
+    private _buckets = new Map<number, Buffer[]>();
+    private _inUse: Buffer[] = [];
+    private _availableCount = 0;
     readonly usage: GPUBufferUsageFlags;
     readonly label: string;
 
-    constructor(usage: GPUBufferUsageFlags, label = "AwgpuBufferPool") {
+    constructor(usage: GPUBufferUsageFlags, label = "BufferPool") {
         this.usage = usage;
         this.label = label;
     }
 
     /** Total number of allocated buffers currently managed by pool. */
     get totalBuffers(): number {
-        return this._available.length + this._inUse.length;
+        return this._availableCount + this._inUse.length;
     }
 
     /** Number of buffers currently acquired and active in frame. */
@@ -187,51 +188,67 @@ export class AwgpuBufferPool {
         return this._inUse.length;
     }
 
+    private _addToBucket(buf: Buffer): void {
+        let bucket = this._buckets.get(buf.size);
+        if (!bucket) {
+            bucket = [];
+            this._buckets.set(buf.size, bucket);
+        }
+        bucket.push(buf);
+        this._availableCount++;
+    }
+
     /**
      * Resets active allocations at start of frame, returning all buffers to available pool.
      */
     reset(): void {
         const inUse = this._inUse;
-        const available = this._available;
         for (let i = 0; i < inUse.length; i++) {
-            available.push(inUse[i]);
+            this._addToBucket(inUse[i]);
         }
         inUse.length = 0;
     }
 
     /**
-     * Acquires buffer with at least requested byte size using best-fit matching from available pool.
+     * Acquires buffer with at least requested byte size using bucketed matching from available pool.
      */
-    acquire(device: GPUDevice, requiredSize: number): AwgpuBuffer {
+    acquire(device: GPUDevice, requiredSize: number): Buffer {
         const alignedSize = Math.max(16, Math.ceil(requiredSize / 16) * 16);
 
-        let bestIndex = -1;
-        let bestDiff = Number.POSITIVE_INFINITY;
-
-        // Best-fit search among available buffers
-        for (let i = 0; i < this._available.length; i++) {
-            const buf = this._available[i];
-            if (buf.size >= alignedSize) {
-                const diff = buf.size - alignedSize;
-                if (diff < bestDiff) {
-                    bestDiff = diff;
-                    bestIndex = i;
-                    if (diff === 0) break;
-                }
-            }
-        }
-
-        if (bestIndex >= 0) {
-            const lastIdx = this._available.length - 1;
-            const buf = this._available[bestIndex];
-            this._available[bestIndex] = this._available[lastIdx];
-            this._available.pop();
+        // 1. Fast O(1) exact size lookup
+        const exactBucket = this._buckets.get(alignedSize);
+        if (exactBucket && exactBucket.length > 0) {
+            const buf = exactBucket.pop()!;
+            this._availableCount--;
             this._inUse.push(buf);
             return buf;
         }
 
+        // 2. Best-fit scan over distinct bucket sizes
+        let bestSize = -1;
+        let bestDiff = Number.POSITIVE_INFINITY;
+
+        for (const [size, bucket] of this._buckets) {
+            if (bucket.length > 0 && size >= alignedSize) {
+                const diff = size - alignedSize;
+                if (diff < bestDiff) {
+                    bestDiff = diff;
+                    bestSize = size;
+                }
+            }
+        }
+
+        if (bestSize >= 0) {
+            const bucket = this._buckets.get(bestSize)!;
+            const buf = bucket.pop()!;
+            this._availableCount--;
+            this._inUse.push(buf);
+            return buf;
+        }
+
+        // 3. Allocate new buffer
         const id = this.totalBuffers;
-        const newBuf = AwgpuBuffer.create(device, {
+        const newBuf = Buffer.create(device, {
             size: alignedSize,
             usage: this.usage,
             label: `${this.label}_${id}`,
@@ -243,25 +260,31 @@ export class AwgpuBufferPool {
     /**
      * Releases an individual buffer back to available pool ahead of frame reset.
      */
-    release(buffer: AwgpuBuffer): boolean {
+    release(buffer: Buffer): boolean {
         const idx = this._inUse.indexOf(buffer);
         if (idx === -1) return false;
         const lastIdx = this._inUse.length - 1;
         this._inUse[idx] = this._inUse[lastIdx];
         this._inUse.pop();
-        this._available.push(buffer);
+        this._addToBucket(buffer);
         return true;
     }
 
     destroy(): void {
-        for (const b of this._available) {
-            b.destroy();
+        for (const bucket of this._buckets.values()) {
+            for (const b of bucket) {
+                b.destroy();
+            }
+            bucket.length = 0;
         }
+        this._buckets.clear();
+        this._availableCount = 0;
+
         for (const b of this._inUse) {
             b.destroy();
         }
-        this._available.length = 0;
         this._inUse.length = 0;
     }
 }
+
 

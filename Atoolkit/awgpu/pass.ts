@@ -1,17 +1,17 @@
-import type { AwgpuRenderTarget } from "./target.js";
-import type { AwgpuRenderPipeline, AwgpuComputePipeline } from "./pipeline.js";
-import type { AwgpuBindGroup } from "./layout.js";
-import type { AwgpuBuffer } from "./buffer.js";
+import type { RenderTarget } from "./target.js";
+import type { RenderPipeline, ComputePipeline } from "./pipeline.js";
+import type { BindGroup } from "./layout.js";
+import type { Buffer } from "./buffer.js";
 
-export type AwgpuDynamicOffsets =
+export type DynamicOffsets =
     | Iterable<number>
     | (Iterable<number> | undefined)[]
     | Record<number, Iterable<number>>;
 
-export interface AwgpuDrawCommand {
-    pipeline: AwgpuRenderPipeline;
-    vertexBuffer?: GPUBuffer | AwgpuBuffer | (GPUBuffer | AwgpuBuffer)[];
-    indexBuffer?: GPUBuffer | AwgpuBuffer;
+export interface DrawCommand {
+    pipeline: RenderPipeline;
+    vertexBuffer?: GPUBuffer | Buffer | (GPUBuffer | Buffer)[];
+    indexBuffer?: GPUBuffer | Buffer;
     indexFormat?: GPUIndexFormat;
     indexCount?: number;
     vertexCount?: number;
@@ -19,30 +19,30 @@ export interface AwgpuDrawCommand {
     vertexStart?: number;
     instanceCount?: number;
     firstInstance?: number;
-    bindGroups?: (GPUBindGroup | AwgpuBindGroup | null | undefined)[];
-    dynamicOffsets?: AwgpuDynamicOffsets;
+    bindGroups?: (GPUBindGroup | BindGroup | null | undefined)[];
+    dynamicOffsets?: DynamicOffsets;
 }
 
-export interface AwgpuComputeCommand {
-    pipeline: AwgpuComputePipeline;
+export interface ComputeCommand {
+    pipeline: ComputePipeline;
     workgroupsX: number;
     workgroupsY?: number;
     workgroupsZ?: number;
-    bindGroups?: (GPUBindGroup | AwgpuBindGroup | null | undefined)[];
-    dynamicOffsets?: AwgpuDynamicOffsets;
+    bindGroups?: (GPUBindGroup | BindGroup | null | undefined)[];
+    dynamicOffsets?: DynamicOffsets;
 }
 
-function resolveGpuBuffer(buf: GPUBuffer | AwgpuBuffer): GPUBuffer {
+function resolveGpuBuffer(buf: GPUBuffer | Buffer): GPUBuffer {
     return "gpuBuffer" in buf ? buf.gpuBuffer : buf;
 }
 
-function resolveGpuBindGroup(bg: GPUBindGroup | AwgpuBindGroup | null | undefined): GPUBindGroup | null {
+function resolveGpuBindGroup(bg: GPUBindGroup | BindGroup | null | undefined): GPUBindGroup | null {
     if (!bg) return null;
     return "gpuBindGroup" in bg ? bg.gpuBindGroup : bg;
 }
 
 function resolveDynamicOffsets(
-    offsets: AwgpuDynamicOffsets | undefined,
+    offsets: DynamicOffsets | undefined,
     slot: number
 ): Iterable<number> | undefined {
     if (!offsets) return undefined;
@@ -61,28 +61,26 @@ function resolveDynamicOffsets(
     return offsets as Iterable<number>;
 }
 
-
-
 /**
  * Encapsulates self-contained WebGPU render pass recording draw commands into target.
  */
-export class AwgpuPass {
+export class Pass {
     readonly name: string;
-    target: AwgpuRenderTarget;
+    target: RenderTarget;
     viewport?: { x: number; y: number; width: number; height: number; minDepth?: number; maxDepth?: number };
     scissor?: { x: number; y: number; width: number; height: number };
-    drawCommands: AwgpuDrawCommand[] = [];
+    drawCommands: DrawCommand[] = [];
 
-    private _drawPool: AwgpuDrawCommand[] = [];
+    private _drawPool: DrawCommand[] = [];
     private _poolIndex = 0;
     private _customRecorder?: (pass: GPURenderPassEncoder) => void;
 
-    constructor(name: string, target: AwgpuRenderTarget) {
+    constructor(name: string, target: RenderTarget) {
         this.name = name;
         this.target = target;
     }
 
-    addDraw(cmd: AwgpuDrawCommand): this {
+    addDraw(cmd: DrawCommand): this {
         this.drawCommands.push(cmd);
         return this;
     }
@@ -91,8 +89,8 @@ export class AwgpuPass {
      * Acquires a pooled, reusable draw command to avoid per-frame heap allocations.
      * Mutate returned command directly. Reused commands automatically append to drawCommands.
      */
-    acquireDraw(): AwgpuDrawCommand {
-        let cmd: AwgpuDrawCommand;
+    acquireDraw(): DrawCommand {
+        let cmd: DrawCommand;
         if (this._poolIndex < this._drawPool.length) {
             cmd = this._drawPool[this._poolIndex++];
             cmd.vertexBuffer = undefined;
@@ -170,6 +168,7 @@ export class AwgpuPass {
         let activeIbo: GPUBuffer | null = null;
         const activeVbos: (GPUBuffer | null)[] = [];
         const activeBindGroups: (GPUBindGroup | null)[] = [null, null, null, null];
+        const activeOffsets: (number[] | null)[] = [null, null, null, null];
 
         for (let i = 0; i < this.drawCommands.length; i++) {
             const cmd = this.drawCommands[i];
@@ -187,11 +186,27 @@ export class AwgpuPass {
                     if (bg) {
                         const offsets = resolveDynamicOffsets(cmd.dynamicOffsets, slot);
                         if (offsets !== undefined) {
-                            pass.setBindGroup(slot, bg, offsets);
-                            activeBindGroups[slot] = bg;
-                        } else if (activeBindGroups[slot] !== bg) {
+                            const offsetArray = Array.isArray(offsets) ? (offsets as number[]) : Array.from(offsets);
+                            const prevOffsets = activeOffsets[slot];
+                            let offsetsChanged = prevOffsets === null || prevOffsets.length !== offsetArray.length;
+                            if (!offsetsChanged && prevOffsets !== null) {
+                                for (let o = 0; o < offsetArray.length; o++) {
+                                    if (prevOffsets[o] !== offsetArray[o]) {
+                                        offsetsChanged = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (activeBindGroups[slot] !== bg || offsetsChanged) {
+                                pass.setBindGroup(slot, bg, offsetArray);
+                                activeBindGroups[slot] = bg;
+                                activeOffsets[slot] = offsetArray;
+                            }
+                        } else if (activeBindGroups[slot] !== bg || activeOffsets[slot] !== null) {
                             pass.setBindGroup(slot, bg);
                             activeBindGroups[slot] = bg;
+                            activeOffsets[slot] = null;
                         }
                     }
                 }
@@ -244,11 +259,11 @@ export class AwgpuPass {
 /**
  * Encapsulates WebGPU compute pass executing compute dispatch commands.
  */
-export class AwgpuComputePass {
+export class ComputePass {
     readonly name: string;
-    commands: AwgpuComputeCommand[] = [];
+    commands: ComputeCommand[] = [];
 
-    private _computePool: AwgpuComputeCommand[] = [];
+    private _computePool: ComputeCommand[] = [];
     private _poolIndex = 0;
     private _customRecorder?: (pass: GPUComputePassEncoder) => void;
 
@@ -256,7 +271,7 @@ export class AwgpuComputePass {
         this.name = name;
     }
 
-    addCompute(cmd: AwgpuComputeCommand): this {
+    addCompute(cmd: ComputeCommand): this {
         this.commands.push(cmd);
         return this;
     }
@@ -265,8 +280,8 @@ export class AwgpuComputePass {
      * Acquires a pooled, reusable compute command to avoid per-frame heap allocations.
      * Mutate returned command directly. Reused commands automatically append to commands list.
      */
-    acquireCompute(): AwgpuComputeCommand {
-        let cmd: AwgpuComputeCommand;
+    acquireCompute(): ComputeCommand {
+        let cmd: ComputeCommand;
         if (this._poolIndex < this._computePool.length) {
             cmd = this._computePool[this._poolIndex++];
             cmd.workgroupsX = 1;
@@ -305,7 +320,12 @@ export class AwgpuComputePass {
      * Accepts optional custom recording callback overriding queued compute commands.
      */
     execute(encoder: GPUCommandEncoder, customRecorder?: (pass: GPUComputePassEncoder) => void): void {
-        const pass = encoder.beginComputePass({ label: `${this.name}_Encoder` });
+        const pass = encoder.beginComputePass({
+            label: `${this.name}_ComputePass`,
+        });
+
+        const activeBindGroups: (GPUBindGroup | null)[] = [null, null, null, null];
+        const activeOffsets: (number[] | null)[] = [null, null, null, null];
 
         const recorder = customRecorder ?? this._customRecorder;
         if (recorder) {
@@ -315,9 +335,10 @@ export class AwgpuComputePass {
         }
 
         let activePipeline: GPUComputePipeline | null = null;
-        const activeBindGroups: (GPUBindGroup | null)[] = [null, null, null, null];
 
-        for (const cmd of this.commands) {
+        for (let i = 0; i < this.commands.length; i++) {
+            const cmd = this.commands[i];
+
             if (activePipeline !== cmd.pipeline.gpuPipeline) {
                 pass.setPipeline(cmd.pipeline.gpuPipeline);
                 activePipeline = cmd.pipeline.gpuPipeline;
@@ -328,12 +349,28 @@ export class AwgpuComputePass {
                     const bg = resolveGpuBindGroup(cmd.bindGroups[slot]);
                     if (bg) {
                         const offsets = resolveDynamicOffsets(cmd.dynamicOffsets, slot);
-                        if (offsets !== undefined) {
-                            pass.setBindGroup(slot, bg, offsets);
-                            activeBindGroups[slot] = bg;
-                        } else if (activeBindGroups[slot] !== bg) {
+                        if (offsets) {
+                            const offsetArray = Array.isArray(offsets) ? offsets : Array.from(offsets);
+                            const prevOffsets = activeOffsets[slot];
+                            let offsetsChanged = !prevOffsets || prevOffsets.length !== offsetArray.length;
+                            if (!offsetsChanged && prevOffsets) {
+                                for (let k = 0; k < offsetArray.length; k++) {
+                                    if (prevOffsets[k] !== offsetArray[k]) {
+                                        offsetsChanged = true;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (activeBindGroups[slot] !== bg || offsetsChanged) {
+                                pass.setBindGroup(slot, bg, offsetArray);
+                                activeBindGroups[slot] = bg;
+                                activeOffsets[slot] = offsetArray;
+                            }
+                        } else if (activeBindGroups[slot] !== bg || activeOffsets[slot] !== null) {
                             pass.setBindGroup(slot, bg);
                             activeBindGroups[slot] = bg;
+                            activeOffsets[slot] = null;
                         }
                     }
                 }

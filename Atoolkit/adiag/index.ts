@@ -1,2 +1,6 @@
-export { Adiag } from "./Adiag.js";
-export type { AdiagResult, AdiagAddArgs } from "./Adiag.js";
+export { Diag } from "./diag.js";
+export type {
+    DiagResult,
+    DiagAddArgs,
+    DiagType,
+} from "./diag.js";

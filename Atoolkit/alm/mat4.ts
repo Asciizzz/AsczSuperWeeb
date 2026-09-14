@@ -251,6 +251,24 @@ export class _Mat4 extends Float32Array {
         return out;
     }
 
+    /**
+     * Computes determinant of this 4x4 matrix.
+     */
+    determinant(): number {
+        return _Mat4.determinant(this);
+    }
+
+    /**
+     * Decomposes matrix into translation, rotation quaternion, and scale.
+     */
+    decompose(
+        outTranslation?: Vec3,
+        outRotation?: Quat,
+        outScale?: Vec3
+    ): { translation: Vec3; rotation: Quat; scale: Vec3 } {
+        return _Mat4.decompose(this, outTranslation, outRotation, outScale);
+    }
+
     translate(v: ArrayLike<number>, out: _Mat4 = this): _Mat4 {
         const x = v[0], y = v[1], z = v[2];
         if (out !== this) {
@@ -564,6 +582,102 @@ export class _Mat4 extends Float32Array {
         out[8] = (xz + wy) * sz;      out[9] = (yz - wx) * sz;      out[10] = (1 - (xx + yy)) * sz; out[11] = 0;
         out[12] = pos[0];             out[13] = pos[1];             out[14] = pos[2];             out[15] = 1;
         return out;
+    }
+
+    /**
+     * Computes determinant of a 4x4 matrix.
+     */
+    static determinant(a: ArrayLike<number>): number {
+        const a00 = a[0],  a01 = a[1],  a02 = a[2],  a03 = a[3];
+        const a10 = a[4],  a11 = a[5],  a12 = a[6],  a13 = a[7];
+        const a20 = a[8],  a21 = a[9],  a22 = a[10], a23 = a[11];
+        const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+        const b00 = a00 * a11 - a01 * a10;
+        const b01 = a00 * a12 - a02 * a10;
+        const b02 = a00 * a13 - a03 * a10;
+        const b03 = a01 * a12 - a02 * a11;
+        const b04 = a01 * a13 - a03 * a11;
+        const b05 = a02 * a13 - a03 * a12;
+        const b06 = a20 * a31 - a21 * a30;
+        const b07 = a20 * a32 - a22 * a30;
+        const b08 = a20 * a33 - a23 * a30;
+        const b09 = a21 * a32 - a22 * a31;
+        const b10 = a21 * a33 - a23 * a31;
+        const b11 = a22 * a33 - a23 * a32;
+
+        return b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    }
+
+    /**
+     * Decomposes a 4x4 affine transformation matrix into translation, rotation quaternion, and scale.
+     */
+    static decompose(
+        m: ArrayLike<number>,
+        outTranslation?: Vec3,
+        outRotation?: Quat,
+        outScale?: Vec3
+    ): { translation: Vec3; rotation: Quat; scale: Vec3 } {
+        const trans = outTranslation ?? new Vec3();
+        trans[0] = m[12];
+        trans[1] = m[13];
+        trans[2] = m[14];
+
+        let sx = Math.hypot(m[0], m[1], m[2]);
+        let sy = Math.hypot(m[4], m[5], m[6]);
+        let sz = Math.hypot(m[8], m[9], m[10]);
+
+        // Check for reflection via 3x3 determinant
+        const det3 =
+            m[0] * (m[5] * m[10] - m[6] * m[9]) -
+            m[4] * (m[1] * m[10] - m[2] * m[9]) +
+            m[8] * (m[1] * m[6] - m[2] * m[5]);
+        if (det3 < 0) {
+            sx = -sx;
+        }
+
+        const scale = outScale ?? new Vec3();
+        scale[0] = sx;
+        scale[1] = sy;
+        scale[2] = sz;
+
+        const rot = outRotation ?? new Quat();
+        const invSx = Math.abs(sx) > EPSILON ? 1.0 / sx : 0;
+        const invSy = Math.abs(sy) > EPSILON ? 1.0 / sy : 0;
+        const invSz = Math.abs(sz) > EPSILON ? 1.0 / sz : 0;
+
+        const m00 = m[0] * invSx, m10 = m[1] * invSx, m20 = m[2] * invSx;
+        const m01 = m[4] * invSy, m11 = m[5] * invSy, m21 = m[6] * invSy;
+        const m02 = m[8] * invSz, m12 = m[9] * invSz, m22 = m[10] * invSz;
+
+        const trace = m00 + m11 + m22;
+        if (trace > 0) {
+            const s = 0.5 / Math.sqrt(trace + 1.0);
+            rot[3] = 0.25 / s;
+            rot[0] = (m21 - m12) * s;
+            rot[1] = (m02 - m20) * s;
+            rot[2] = (m10 - m01) * s;
+        } else if (m00 > m11 && m00 > m22) {
+            const s = 2.0 * Math.sqrt(1.0 + m00 - m11 - m22);
+            rot[3] = (m21 - m12) / s;
+            rot[0] = 0.25 * s;
+            rot[1] = (m01 + m10) / s;
+            rot[2] = (m02 + m20) / s;
+        } else if (m11 > m22) {
+            const s = 2.0 * Math.sqrt(1.0 + m11 - m00 - m22);
+            rot[3] = (m02 - m20) / s;
+            rot[0] = (m01 + m10) / s;
+            rot[1] = 0.25 * s;
+            rot[2] = (m12 + m21) / s;
+        } else {
+            const s = 2.0 * Math.sqrt(1.0 + m22 - m00 - m11);
+            rot[3] = (m10 - m01) / s;
+            rot[0] = (m02 + m20) / s;
+            rot[1] = (m12 + m21) / s;
+            rot[2] = 0.25 * s;
+        }
+
+        return { translation: trans, rotation: rot, scale };
     }
 
     /**

@@ -1,9 +1,9 @@
-import type { Entity } from "./Entity.js";
+import { type Entity, entityIndex } from "./Entity.js";
 
 /**
  * Contiguous Float32Array component storage for high-frequency numeric data.
  */
-export class FloatSet {
+export class FloatSet implements Iterable<[Entity, Float32Array]> {
     readonly stride: number;
     dense: Float32Array;
     entities: Entity[] = [];
@@ -21,12 +21,14 @@ export class FloatSet {
     }
 
     has(entity: Entity): boolean {
-        const idx = this.sparse[entity];
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
         return idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity;
     }
 
     get(entity: Entity): Float32Array | undefined {
-        const idx = this.sparse[entity];
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
         if (idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity) {
             const offset = idx * this.stride;
             return this.dense.subarray(offset, offset + this.stride);
@@ -34,8 +36,54 @@ export class FloatSet {
         return undefined;
     }
 
+    /**
+     * Reads a single float component from the entity record without allocating a subarray view.
+     */
+    getDirect(entity: Entity, componentIndex: number): number | undefined {
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
+        if (idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity) {
+            if (componentIndex >= 0 && componentIndex < this.stride) {
+                return this.dense[idx * this.stride + componentIndex];
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Writes a single float component directly into dense memory without allocating an array.
+     */
+    setDirect(entity: Entity, componentIndex: number, value: number): boolean {
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
+        if (idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity) {
+            if (componentIndex >= 0 && componentIndex < this.stride) {
+                this.dense[idx * this.stride + componentIndex] = value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Copies entity float record directly into destination buffer without creating intermediate views.
+     */
+    copyTo(entity: Entity, dst: Float32Array, dstOffset = 0): boolean {
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
+        if (idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity) {
+            const srcOffset = idx * this.stride;
+            for (let i = 0; i < this.stride; i++) {
+                dst[dstOffset + i] = this.dense[srcOffset + i];
+            }
+            return true;
+        }
+        return false;
+    }
+
     set(entity: Entity, values: ArrayLike<number>): this {
-        let idx = this.sparse[entity];
+        const slot = entityIndex(entity);
+        let idx = this.sparse[slot];
         if (idx !== undefined && idx >= 0 && idx < this._size && this.entities[idx] === entity) {
             const offset = idx * this.stride;
             const len = Math.min(values.length, this.stride);
@@ -52,7 +100,7 @@ export class FloatSet {
 
         idx = this._size++;
         this.entities[idx] = entity;
-        this.sparse[entity] = idx;
+        this.sparse[slot] = idx;
         const offset = idx * this.stride;
         const len = Math.min(values.length, this.stride);
         for (let i = 0; i < len; i++) this.dense[offset + i] = values[i];
@@ -60,7 +108,8 @@ export class FloatSet {
     }
 
     delete(entity: Entity): boolean {
-        const idx = this.sparse[entity];
+        const slot = entityIndex(entity);
+        const idx = this.sparse[slot];
         if (idx === undefined || idx < 0 || idx >= this._size || this.entities[idx] !== entity) {
             return false;
         }
@@ -71,17 +120,34 @@ export class FloatSet {
             const stride = this.stride;
             this.dense.copyWithin(idx * stride, lastIdx * stride, (lastIdx + 1) * stride);
             this.entities[idx] = lastEntity;
-            this.sparse[lastEntity] = idx;
+            this.sparse[entityIndex(lastEntity)] = idx;
         }
 
-        this.sparse[entity] = -1;
+        this.entities.pop();
+        this.sparse[slot] = -1;
         return true;
     }
 
     clear(): void {
-        this.sparse.fill(-1);
+        this.sparse.length = 0;
         this.entities.length = 0;
         this._size = 0;
+    }
+
+    *[Symbol.iterator](): Iterator<[Entity, Float32Array]> {
+        const len = this._size;
+        const stride = this.stride;
+        for (let i = 0; i < len; i++) {
+            const offset = i * stride;
+            yield [this.entities[i], this.dense.subarray(offset, offset + stride)];
+        }
+    }
+
+    *keys(): IterableIterator<Entity> {
+        const len = this._size;
+        for (let i = 0; i < len; i++) {
+            yield this.entities[i];
+        }
     }
 
     each(fn: (entity: Entity, data: Float32Array) => void): void {
