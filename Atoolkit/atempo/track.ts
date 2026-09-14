@@ -1,0 +1,220 @@
+import { type Curve } from "./curve.js";
+
+export enum Extrapolation {
+    Clamp = 0,
+    Loop = 1,
+    PingPong = 2,
+}
+
+export interface Keyframe<T> {
+    time: number;
+    value: T;
+    curve?: Curve;
+}
+
+/**
+ * Base temporal sequence track.
+ * Stores chronological keyframes and evaluates interval interpolation.
+ * Subclasses implement blend(a, b, alpha, out) for concrete data types.
+ */
+export abstract class Track<T, TOut = T> {
+    extrapolation: Extrapolation = Extrapolation.Clamp;
+
+    protected _times: Float64Array;
+    protected _values: T[] = [];
+    protected _curves: (Curve | undefined)[] = [];
+    protected _count = 0;
+    protected _capacity: number;
+    protected _cachedIndex = 0;
+
+    constructor(initialCapacity = 16) {
+        this._capacity = Math.max(4, initialCapacity);
+        this._times = new Float64Array(this._capacity);
+    }
+
+    get count(): number {
+        return this._count;
+    }
+
+    get startTime(): number {
+        return this._count > 0 ? this._times[0] : 0;
+    }
+
+    get endTime(): number {
+        return this._count > 0 ? this._times[this._count - 1] : 0;
+    }
+
+    get duration(): number {
+        if (this._count < 2) return 0;
+        return this._times[this._count - 1] - this._times[0];
+    }
+
+    /**
+     * Appends or inserts keyframe maintaining ascending chronological order.
+     */
+    addKey(time: number, value: T, curve?: Curve): this {
+        if (this._count >= this._capacity) {
+            this._grow();
+        }
+
+        if (this._count === 0 || time >= this._times[this._count - 1]) {
+            const idx = this._count;
+            this._times[idx] = time;
+            this._values.push(value);
+            this._curves.push(curve);
+            this._count++;
+            return this;
+        }
+
+        let low = 0;
+        let high = this._count - 1;
+        let insertIdx = this._count;
+        while (low <= high) {
+            const mid = (low + high) >> 1;
+            if (this._times[mid] >= time) {
+                insertIdx = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+
+        this._times.copyWithin(insertIdx + 1, insertIdx, this._count);
+        this._times[insertIdx] = time;
+        this._values.splice(insertIdx, 0, value);
+        this._curves.splice(insertIdx, 0, curve);
+        this._count++;
+
+        return this;
+    }
+
+    /**
+     * Removes keyframe at specified index.
+     */
+    removeKey(index: number): boolean {
+        if (index < 0 || index >= this._count) return false;
+
+        this._times.copyWithin(index, index + 1, this._count);
+        this._values.splice(index, 1);
+        this._curves.splice(index, 1);
+        this._count--;
+        this._cachedIndex = Math.max(0, Math.min(this._cachedIndex, this._count - 2));
+        return true;
+    }
+
+    /**
+     * Clears all keyframes.
+     */
+    clear(): this {
+        this._count = 0;
+        this._values.length = 0;
+        this._curves.length = 0;
+        this._cachedIndex = 0;
+        return this;
+    }
+
+    /**
+     * Retrieves keyframe at index.
+     */
+    getKey(index: number): Keyframe<T> | undefined {
+        if (index < 0 || index >= this._count) return undefined;
+        return {
+            time: this._times[index],
+            value: this._values[index],
+            curve: this._curves[index],
+        };
+    }
+
+    /**
+     * Samples track value at specified timestamp.
+     * Evaluates active interval span, computes shaped alpha, and invokes blend().
+     *
+     * @param time Sample timestamp
+     * @param out Optional pre-allocated destination buffer
+     */
+    sample(time: number, out?: TOut): TOut {
+        if (this._count === 0) {
+            return this.defaultValue(out);
+        }
+
+        if (this._count === 1) {
+            return this.blend(this._values[0], this._values[0], 0, out);
+        }
+
+        const tStart = this._times[0];
+        const tEnd = this._times[this._count - 1];
+        const totalDuration = tEnd - tStart;
+
+        let evalTime = time;
+        if (totalDuration > 0) {
+            if (this.extrapolation === Extrapolation.Loop) {
+                const rem = ((evalTime - tStart) % totalDuration + totalDuration) % totalDuration;
+                evalTime = tStart + rem;
+            } else if (this.extrapolation === Extrapolation.PingPong) {
+                const doubleDur = totalDuration * 2;
+                const rem = ((evalTime - tStart) % doubleDur + doubleDur) % doubleDur;
+                evalTime = rem < totalDuration ? tStart + rem : tEnd - (rem - totalDuration);
+            }
+        }
+
+        if (evalTime <= tStart) {
+            return this.blend(this._values[0], this._values[0], 0, out);
+        }
+        if (evalTime >= tEnd) {
+            const last = this._count - 1;
+            return this.blend(this._values[last], this._values[last], 1, out);
+        }
+
+        let idx = this._cachedIndex;
+        if (idx < this._count - 1 && evalTime >= this._times[idx] && evalTime < this._times[idx + 1]) {
+            // Sequential cache hit
+        } else {
+            let low = 0;
+            let high = this._count - 1;
+            while (low <= high) {
+                const mid = (low + high) >> 1;
+                if (this._times[mid] <= evalTime) {
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            idx = Math.max(0, Math.min(this._count - 2, high));
+            this._cachedIndex = idx;
+        }
+
+        const k0Time = this._times[idx];
+        const k1Time = this._times[idx + 1];
+        const dt = k1Time - k0Time;
+        const tau = dt > 0 ? (evalTime - k0Time) / dt : 0;
+
+        const curve = this._curves[idx];
+        const alpha = curve ? curve(tau) : tau;
+
+        return this.blend(this._values[idx], this._values[idx + 1], alpha, out);
+    }
+
+    /**
+     * Subclasses implement value blending between two keyframes.
+     *
+     * @param a Left keyframe value
+     * @param b Right keyframe value
+     * @param alpha Shaped interval progress
+     * @param out Optional output destination buffer
+     */
+    abstract blend(a: T, b: T, alpha: number, out?: TOut): TOut;
+
+    /**
+     * Fallback value when track contains zero keyframes.
+     */
+    protected defaultValue(out?: TOut): TOut {
+        return out as unknown as TOut;
+    }
+
+    private _grow(): void {
+        this._capacity *= 2;
+        const newTimes = new Float64Array(this._capacity);
+        newTimes.set(this._times);
+        this._times = newTimes;
+    }
+}

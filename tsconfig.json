@@ -19,6 +19,7 @@
     "prototypes/AwgpuRayTracing/**/*.ts",
     "prototypes/AwgpuMotionGfx/**/*.ts",
     "prototypes/WeebGfxDemo/**/*.ts",
+    "prototypes/AestheteLyricMV/**/*.ts",
     "hub/**/*.ts"
   ],
   "exclude": ["node_modules", "dist", ".tsc-dist", ".vite", "**/*.config.ts", "archive"]
